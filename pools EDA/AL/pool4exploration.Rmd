@@ -1,0 +1,89 @@
+---
+title: "Pool 4 Lower Exploration"
+author: "Amber Lee"
+date: "6/3/2021"
+output: pdf_document
+---
+
+```{r}
+library(tidyverse)
+library(ggplot2)
+library(lubridate)
+```
+
+
+```{r}
+veg19 <- read.csv(file = "ltrm_vegsrs_data_lat_long.csv")
+water19 <- read.csv(file = "ltrm_water_data_lat_long.csv")
+```
+
+```{r}
+veg19 %>% 
+  filter(POOL == "04",
+         str_detect(MSTRATUM, "-L")) %>%
+  select(DATE, DETRITUS, SBSTRATE, VEG_S, VEG_RF, 
+         VEG_E, VEG_A, VEG_NRF, VEG_U,
+         COV_NRF, COV_RF, COV_E,
+         RAKE1, RAKE2, RAKE3, RAKE4, RAKE5, RAKE6) %>% head()
+
+veg_4L <- veg19 %>% 
+  filter(POOL == "04",
+         str_detect(MSTRATUM, "-L")) %>%
+  mutate(DATE = mdy(DATE))
+```
+
+Rake distribution
+
+```{r}
+veg_4L %>% 
+  mutate(year = year(DATE)) %>%
+  select(year, RAKE1, RAKE2, RAKE3, RAKE4, RAKE5, RAKE6) %>%
+  pivot_longer(!year, names_to = "subsample_rake",
+               values_to = "level") %>%
+  group_by(year) %>%
+  summarize(mean_level = mean(level),
+            sd_level = sd(level)) %>%
+  ggplot(aes(x = year, y = mean_level, 
+             fill = sd_level)) +
+  geom_point()
+  
+  # 
+  # ggplot(aes(x = RAKE1)) +
+  # geom_histogram()
+```
+
+Water depth
+
+```{r}
+veg_4L %>% 
+  mutate(year = year(DATE)) %>%
+  select(year, starts_with("DEPTH")) %>%
+  pivot_longer(!year, names_to = "subsample",
+               values_to = "depth") %>%
+  ggplot(aes(x = year, y = depth, group = year)) +
+  geom_boxplot()
+  
+  # 
+  # ggplot(aes(x = RAKE1)) +
+  # geom_histogram()
+```
+
+plant density
+
+```{r}
+veg_4L %>% 
+  mutate(year = year(DATE)) %>%
+  select(year, starts_with("DENSITY")) %>%
+  pivot_longer(!year, names_to = "subsample",
+               values_to = "density") %>%
+  ggplot(aes(x = year, y = density, group = year)) +
+  stat_summary(
+    mapping = aes(x = year, y = density),
+    fun.min = function(z) { quantile(z,0.25) },
+    fun.max = function(z) { quantile(z,0.75) },
+    fun = mean)
+```
+
+[website](umesc.usgs.gov/ltrm-home.html)
+
+Total phosphorous, 
