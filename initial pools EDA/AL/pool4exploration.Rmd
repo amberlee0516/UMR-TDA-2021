@@ -24,7 +24,7 @@ veg19 %>%
   select(DATE, DETRITUS, SBSTRATE, VEG_S, VEG_RF, 
          VEG_E, VEG_A, VEG_NRF, VEG_U,
          COV_NRF, COV_RF, COV_E,
-         RAKE1, RAKE2, RAKE3, RAKE4, RAKE5, RAKE6)
+         RAKE1, RAKE2, RAKE3, RAKE4, RAKE5, RAKE6) %>% head()
 
 veg_4L <- veg19 %>% 
   filter(POOL == "04",
