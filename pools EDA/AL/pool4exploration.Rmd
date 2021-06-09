@@ -13,9 +13,11 @@ library(lubridate)
 
 
 ```{r}
-veg19 <- read.csv(file = "ltrm_vegsrs_data_lat_long.csv")
-water19 <- read.csv(file = "ltrm_water_data_lat_long.csv")
+veg19 <- read.csv(file = "../2019 pool data/ltrm_vegsrs_data_lat_long.csv")
+water19 <- read.csv(file = "../2019 pool data/ltrm_water_data_lat_long.csv")
 ```
+
+## Vegetation data
 
 ```{r}
 veg19 %>% 
@@ -84,6 +86,38 @@ veg_4L %>%
     fun = mean)
 ```
 
+## Water data
+
+```{r}
+
+water19 %>%
+  filter(FLDNUM == "1") %>%
+  mutate(`Pool 4 Regions` = case_when(LONGITUDE <= -92.33 ~ "Lower",
+                                      LONGITUDE >= -92.035 ~ "Upper",
+                                      TRUE ~ "A lake")) %>%
+  ggplot(aes(x = LATITUDE, y = LONGITUDE)) +
+  geom_point(aes(color = `Pool 4 Regions`)) +
+  geom_abline(intercept = -92.035, slope = 0) +
+  geom_abline(intercept = -92.33, slope = 0) +
+  ggtitle("Upper and Lower Pool 4")
+
+```
+
+
+```{r}
+
+water_var <- c('TN','TP','TEMP','DO','TURB',
+               'COND','VEL','SS','WDP','CHLcal','SECCHI')
+
+water_4L %>% select(all_of(water_var), DATE) 
+
+water_4L %>% mutate(year = year(DATE)) %>%
+  ggplot(aes(y = SECCHI, group = year)) +
+  geom_boxplot()
+
+```
+
+
 [website](umesc.usgs.gov/ltrm-home.html)
 
-Total phosphorous, 
+
