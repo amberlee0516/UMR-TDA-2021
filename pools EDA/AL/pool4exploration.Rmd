@@ -106,15 +106,82 @@ water19 %>%
 
 ```{r}
 
+# filter for pool 4 lower
+water_4L <- water19 %>% 
+  filter(FLDNUM == "1") %>%
+  mutate(DATE = mdy(DATE),
+         year = year(DATE),
+         is_lower = case_when(LONGITUDE <= -92.33 ~ TRUE,
+                              TRUE ~ FALSE)) %>%
+  filter(is_lower)
+
 water_var <- c('TN','TP','TEMP','DO','TURB',
                'COND','VEL','SS','WDP','CHLcal','SECCHI')
 
-water_4L %>% select(all_of(water_var), DATE) 
+plotter_box_by_year <- function(var_str, data, facet_bool){
+  
+  # facet_bool gives if you should facet by STRATUM type
+  
+  title <- paste("boxplot_by_year", "4L", var_str, sep = "_")
+  
+  if (facet_bool){title <- paste(title, "_facet")}
+  
+  title <- paste(title, "png", sep = ".")
+  
+  if (facet_bool){
+    data %>%
+      filter(!is.na(!!sym(var_str))) %>%
+      ggplot(aes(x = year, y = !!sym(var_str), group = year)) +
+      geom_boxplot() + 
+      facet_wrap(~ STRATUM)
+  } else {
+    data %>%
+      filter(!is.na(!!sym(var_str))) %>%
+      ggplot(aes(x = year, y = !!sym(var_str), group = year)) +
+      geom_boxplot()
+  }
+  
+  ggsave(title)
 
-water_4L %>% mutate(year = year(DATE)) %>%
-  ggplot(aes(y = SECCHI, group = year)) +
+}
+
+sapply(water_var, plotter_box_by_year, water_4L, F)
+sapply(water_var, plotter_box_by_year, water_4L, T)
+
+
+# SS, turbidity, and secchi all three measure water quality
+
+# velocity graph is new
+
+# dissolved oxygen is variable by the time of day
+
+# temperature is important per season
+
+# habitat class for these water quality data is all NA
+# unique(water_4L$HABCLASS)
+
+unique(water_4L$STRATUM)
+
+hist(water_4L$STRATUM)
+
+```
+
+1 = Main channel
+2 = Side channel
+3 = Backwater area contiguous to the main channel
+4 = Lake Pepin or Swan Lake
+
+
+* total nitrogen is variable by year, but within year, not too variable
+
+* velocity has increased, water volume is greater
+
+* 
+
+```{r}
+water_4L %>%
+  ggplot(aes(x = SECCHI, y = SECCHI, group = year)) +
   geom_boxplot()
-
 ```
 
 
