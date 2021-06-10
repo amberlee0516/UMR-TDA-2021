@@ -11,6 +11,26 @@ library(ggplot2)
 library(lubridate)
 ```
 
+pictures, geographical information about the pool
+some data information
+
+* for example, casey only has main channel and side channel data. (what are the strata that we have?)
+
+* statistical summary of 4 variables: `TP`, `CHLcal`, `SS`, `TURB`
+
+* number of observations per strata
+
+* future directions / ideas
+
+* an interesting paper or article from USGS website relating to pool 4 lower
+
+* missing data
+
+* extreme outliers
+
+* `TP` and `TN` may have some missing values
+
+(next friday: learn to pose own questions within an ecosystem framework, explain the project in our own words)
 
 ```{r}
 veg19 <- read.csv(file = "../2019 pool data/ltrm_vegsrs_data_lat_long.csv")
@@ -149,6 +169,7 @@ sapply(water_var, plotter_box_by_year, water_4L, F)
 sapply(water_var, plotter_box_by_year, water_4L, T)
 
 
+
 # SS, turbidity, and secchi all three measure water quality
 
 # velocity graph is new
@@ -166,6 +187,7 @@ hist(water_4L$STRATUM)
 
 ```
 
+Note: stratum types
 1 = Main channel
 2 = Side channel
 3 = Backwater area contiguous to the main channel
@@ -174,14 +196,22 @@ hist(water_4L$STRATUM)
 
 * total nitrogen is variable by year, but within year, not too variable
 
-* velocity has increased, water volume is greater
+* velocity has increased, water volume is greater. increase in velocity reflects collection in data? collect
 
-* 
+
 
 ```{r}
 water_4L %>%
-  ggplot(aes(x = SECCHI, y = SECCHI, group = year)) +
-  geom_boxplot()
+  mutate(season = quarter(DATE)) %>%
+  ggplot(aes(x = year, y = TEMP, group = year)) +
+  geom_boxplot() +
+  facet_wrap(~ season)
+
+water_4L %>%
+  mutate(season = quarter(DATE)) %>%
+  ggplot(aes(x = year, y = DO, group = year)) +
+  geom_boxplot() +
+  facet_wrap(~ season)
 ```
 
 
