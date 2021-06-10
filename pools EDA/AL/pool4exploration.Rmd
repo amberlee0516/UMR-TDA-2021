@@ -11,6 +11,26 @@ library(ggplot2)
 library(lubridate)
 ```
 
+pictures, geographical information about the pool
+some data information
+
+* for example, casey only has main channel and side channel data. (what are the strata that we have?)
+
+* statistical summary of 4 variables: `TP`, `CHLcal`, `SS`, `TURB`
+
+* number of observations per strata
+
+* future directions / ideas
+
+* an interesting paper or article from USGS website relating to pool 4 lower
+
+* missing data
+
+* extreme outliers
+
+* `TP` and `TN` may have some missing values
+
+(next friday: learn to pose own questions within an ecosystem framework, explain the project in our own words)
 
 ```{r}
 veg19 <- read.csv(file = "../2019 pool data/ltrm_vegsrs_data_lat_long.csv")
@@ -178,12 +198,20 @@ Note: stratum types
 
 * velocity has increased, water volume is greater. increase in velocity reflects collection in data? collect
 
-* 
+
 
 ```{r}
 water_4L %>%
-  ggplot(aes(x = SECCHI, y = SECCHI, group = year)) +
-  geom_boxplot()
+  mutate(season = quarter(DATE)) %>%
+  ggplot(aes(x = year, y = TEMP, group = year)) +
+  geom_boxplot() +
+  facet_wrap(~ season)
+
+water_4L %>%
+  mutate(season = quarter(DATE)) %>%
+  ggplot(aes(x = year, y = DO, group = year)) +
+  geom_boxplot() +
+  facet_wrap(~ season)
 ```
 
 
