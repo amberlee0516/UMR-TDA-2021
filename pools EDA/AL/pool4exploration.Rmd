@@ -9,6 +9,8 @@ output: pdf_document
 library(tidyverse)
 library(ggplot2)
 library(lubridate)
+library(corrplot)
+library(RColorBrewer)
 ```
 
 pictures, geographical information about the pool
@@ -33,8 +35,9 @@ some data information
 (next friday: learn to pose own questions within an ecosystem framework, explain the project in our own words)
 
 ```{r}
-veg19 <- read.csv(file = "../2019 pool data/ltrm_vegsrs_data_lat_long.csv")
-water19 <- read.csv(file = "../2019 pool data/ltrm_water_data_lat_long.csv")
+veg19 <- read.csv(file = "../pool data/ltrm_vegsrs_data_lat_long.csv")
+water20 <- read.csv(file = "../pool data/ltrm_water_data_lat_long.csv")
+# lter use data through 2020 that has lat/lng
 ```
 
 ## Vegetation data
@@ -110,33 +113,150 @@ veg_4L %>%
 
 ```{r}
 
-water19 %>%
-  filter(FLDNUM == "1") %>%
+water20 %>%
+  filter(FLDNUM == "1", !is.na(STRATUM)) %>%
   mutate(`Pool 4 Regions` = case_when(LONGITUDE <= -92.33 ~ "Lower",
-                                      LONGITUDE >= -92.035 ~ "Upper",
-                                      TRUE ~ "A lake")) %>%
+                                      LONGITUDE >= -92.11 ~ "Upper",
+                                      TRUE ~ "A lake"),
+         Stratum = case_when(STRATUM == 1 ~ "Main channel",
+                             STRATUM == 2 ~ "Side channel",
+                             STRATUM == 3 ~ "Backwater area",
+                             STRATUM == 4 ~ "Lake Pepin",
+                             STRATUM == 5 ~ "Impounded",
+                             STRATUM == 6 ~ "Isolated",
+                             STRATUM == 7 ~ "New Terrestrial"),
+         DATE = mdy(DATE),
+         year = year(DATE)) %>%
   ggplot(aes(x = LATITUDE, y = LONGITUDE)) +
-  geom_point(aes(color = `Pool 4 Regions`)) +
-  geom_abline(intercept = -92.035, slope = 0) +
+  geom_point(aes(color = Stratum), alpha = 0.2) +
+  scale_color_manual(values = brewer.pal(9,'Blues')[3:10]) +
+  geom_abline(intercept = -92.11, slope = 0) +
   geom_abline(intercept = -92.33, slope = 0) +
-  ggtitle("Upper and Lower Pool 4")
+  ggtitle("Pool 4", 
+          subtitle = "Black lines indicate how we split upper and lower") + 
+  guides(colour = guide_legend(override.aes = list(alpha = 1))) +
+  scale_x_continuous(limits = c(44.3, 44.65)) +
+  scale_y_continuous(limits = c(-92.65, -91.8))
+
+ggsave("splitting_pool4.png")
+
+
+#3000 out of 204k observations removed
 
 ```
 
-
 ```{r}
 
+water_var <- c('TN','TP','TEMP','DO','TURB',
+               'COND','VEL','SS','WDP','CHLcal','SECCHI')
+
 # filter for pool 4 lower
-water_4L <- water19 %>% 
+water_4L <- water20 %>% 
   filter(FLDNUM == "1") %>%
   mutate(DATE = mdy(DATE),
          year = year(DATE),
          is_lower = case_when(LONGITUDE <= -92.33 ~ TRUE,
-                              TRUE ~ FALSE)) %>%
-  filter(is_lower)
+                              TRUE ~ FALSE),
+         decade = case_when(year <= 2000 ~ "1993-2000",
+                            year >= 2001 & year <= 2014 ~ "2001-2014",
+                            year >= 2014 ~ "2014-2020"),
+         Stratum = case_when(STRATUM == 1 ~ "Main channel",
+                             STRATUM == 2 ~ "Side channel",
+                             STRATUM == 3 ~ "Backwater area",
+                             STRATUM == 4 ~ "Lake Pepin",
+                             STRATUM == 5 ~ "Impounded",
+                             STRATUM == 6 ~ "Isolated",
+                             STRATUM == 7 ~ "New Terrestrial")) %>%
+  filter(is_lower & STRATUM != 4)
 
-water_var <- c('TN','TP','TEMP','DO','TURB',
-               'COND','VEL','SS','WDP','CHLcal','SECCHI')
+
+```
+
+```{r}
+
+ggplot(water_4L, aes(x = LATITUDE, y = LONGITUDE)) +
+  geom_point(aes(color = Stratum), alpha = 0.75, size = 2) +
+  scale_color_manual(values = brewer.pal(7,'Blues')[2:7]) +
+  ggtitle("Pool 4L Stratum", 
+          subtitle = "Black lines indicate how we split upper and lower") + 
+  guides(colour = guide_legend(override.aes = list(alpha = 1))) +
+  scale_y_continuous(limits = c(-92.625, -92.4))
+
+ggsave("stratum_pool4L.png")
+  
+```
+
+### Sampling distribution
+
+```{r}
+
+ggplot(water_4L) +
+  geom_histogram(aes(x = year, fill = Stratum)) +
+  facet_wrap(~ Stratum) +
+  scale_fill_manual(values = brewer.pal(7,'Blues')[2:7]) +
+  ggtitle("Sampling distribution of strata per year",
+          subtitle = "Pool 4 Lower")
+
+ggsave("sampling_distribution_year_strata.png")
+
+```
+
+
+### Missing values
+
+* number of missing values per variable per year
+
+* Missingness by decade (zooming out)
+
+```{r}
+
+water_4L <- bind_cols(water_4L, missing = rowSums(is.na(water_4L)))
+
+# data.frame(Variables = names(water_4L), Missing = colSums(is.na(water_4L))) %>%
+#   filter(Variables %in% water_var) %>%
+#   ggplot(aes(x = Variables, y = Missing)) +
+#   geom_bar(stat = "identity")
+
+water_4L %>%
+  group_by(year) %>%
+  summarise(across(water_var, ~ sum(is.na(.x)))) %>%
+  pivot_longer(water_var, names_to = "Variables") %>%
+  ggplot(aes(x = year, y = value)) +
+  geom_point(aes(color = Variables)) +
+  geom_line(aes(color = Variables)) +
+  ggtitle("Number of missing values per year",
+          subtitle = "Of selected variables (color coded) in Pool 4 Lower")
+
+ggsave("missing_count_selected_pool4L.png")
+
+water_4L %>%
+  select(year, all_of(c("TN", "TURB", "SS", "CHLcal"))) %>%
+  group_by(year) %>%
+  summarise(across(c("TN", "TURB", "SS", "CHLcal"), ~ sum(is.na(.x))) ) %>%
+  pivot_longer(c("TN", "TURB", "SS", "CHLcal"), names_to = "Variables") %>%
+  ggplot(aes(x = year, y = value)) +
+  geom_point(aes(color = Variables)) +
+  geom_line(aes(color = Variables)) +
+  facet_wrap(~ Variables) +
+  ggtitle("Number of missing values per year",
+          subtitle = "Of selected variables (color coded) in Pool 4 Lower")
+
+ggsave("missing_count_4_pool4L.png")
+
+ggplot(water_4L, aes(x = decade, y = missing)) +
+  geom_violin(aes(group = decade, fill = decade)) +
+  ggtitle("Density of count of missing observations per decade",
+          subtitle = "Pool 4 Lower") +
+  scale_fill_manual(values = brewer.pal(7,'Blues')[3:6]) +
+  theme(legend.position = "none")
+  
+  
+ggsave("missing_violin_pool4L.png", height = 4, width = 6)
+
+```
+
+### Continuous variable box plots
+```{r}
 
 plotter_box_by_year <- function(var_str, data, facet_bool){
   
@@ -165,9 +285,8 @@ plotter_box_by_year <- function(var_str, data, facet_bool){
 
 }
 
-sapply(water_var, plotter_box_by_year, water_4L, F)
-sapply(water_var, plotter_box_by_year, water_4L, T)
-
+sapply(c("TN", "TURB", "SS", "CHLcal"), plotter_box_by_year, water_4L, F)
+sapply(c("TN", "TURB", "SS", "CHLcal"), plotter_box_by_year, water_4L, T)
 
 
 # SS, turbidity, and secchi all three measure water quality
@@ -183,7 +302,7 @@ sapply(water_var, plotter_box_by_year, water_4L, T)
 
 unique(water_4L$STRATUM)
 
-hist(water_4L$STRATUM)
+table(water_4L$STRATUM)
 
 ```
 
@@ -198,9 +317,10 @@ Note: stratum types
 
 * velocity has increased, water volume is greater. increase in velocity reflects collection in data? collect
 
-
+### Temperature
 
 ```{r}
+
 water_4L %>%
   mutate(season = quarter(DATE)) %>%
   ggplot(aes(x = year, y = TEMP, group = year)) +
@@ -212,6 +332,36 @@ water_4L %>%
   ggplot(aes(x = year, y = DO, group = year)) +
   geom_boxplot() +
   facet_wrap(~ season)
+
+
+water_4L %>%
+  mutate(season = quarter(DATE)) %>%
+  ggplot(aes(x = year, y = CHLcal, group = year)) +
+  geom_boxplot() +
+  facet_wrap(~ season)
+
+```
+
+### Water quality
+
+```{r}
+
+waterqual_4L <- water_4L %>% 
+                     select(SS, TURB, SECCHI)
+
+waterqual_4L <- waterqual_4L %>%
+  bind_cols(missing = rowSums(is.na(waterqual_4L))) %>%
+  filter(missing == 0) %>% # remove missing
+  select(-missing)
+
+ggplot(data = water_4L, aes(x = SS, y = TURB)) +
+  geom_point(aes(color = log(SECCHI)))
+
+corrplot(round(cor(waterqual_4L ), digits = 4))
+
+ggsave("waterquality_corrplot.png")
+
+
 ```
 
 
