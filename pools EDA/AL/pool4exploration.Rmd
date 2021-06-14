@@ -11,6 +11,7 @@ library(ggplot2)
 library(lubridate)
 library(corrplot)
 library(RColorBrewer)
+library(reticulate)
 ```
 
 pictures, geographical information about the pool
@@ -393,5 +394,67 @@ ggsave("waterquality_corrplot.png")
 
 
 [website](umesc.usgs.gov/ltrm-home.html)
+
+## Euclidean distance metric
+
+https://www.rdocumentation.org/packages/pracma/versions/1.9.9/topics/haversine
+
+```{r}
+library(pracma) # haversine formula
+```
+
+```{r}
+loc_df <- water20 %>%
+  select(LATITUDE, LONGITUDE, TP) %>%
+  distinct() %>%
+  head(10)
+```
+
+Here, latitude is given in north
+Longitude is given in west (hence negative)
+```{r}
+
+
+getLatLng <- function(n_col, df) {
+  
+  latlng <- c(df[n_col,1],
+              df[n_col,2])
+  
+  return(latlng)
+  
+}
+
+getDist <- function(n_iterating_location, df, location){
+  
+  iterating_location <- getLatLng(n_iterating_location, df)
+  
+  return(haversine(iterating_location, location))
+  
+}
+
+getColDist <- function(n_col, df){
+  
+  location <- getLatLng(n_col, df)
+  
+  # iterate through each row of the df to generate ONE row
+  return(sapply(1:dim(df), getDist, df, location))
+  
+  
+}
+
+as.matrix(bind_cols(lapply(1:dim(loc_df), getColDist, loc_df)))
+
+
+```
+
+```{r}
+big_loc_df <- water20 %>% 
+  select(LONGITUDE, LATITUDE, TP) %>%
+  head(1000) 
+
+lapply(1:dim(big_loc_df), getColDist, big_loc_df)
+
+```
+
 
 
