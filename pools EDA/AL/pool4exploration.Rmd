@@ -262,7 +262,7 @@ plotter_box_by_year <- function(var_str, data, facet_bool){
   
   # facet_bool gives if you should facet by STRATUM type
   
-  title <- paste("boxplot_by_year", "4L", var_str, sep = "_")
+  title <- paste(var_str, "boxplot_by_year", "pool4L", sep = "_")
   
   if (facet_bool){title <- paste(title, "_facet")}
   
@@ -273,7 +273,7 @@ plotter_box_by_year <- function(var_str, data, facet_bool){
       filter(!is.na(!!sym(var_str))) %>%
       ggplot(aes(x = year, y = !!sym(var_str), group = year)) +
       geom_boxplot() + 
-      facet_wrap(~ STRATUM)
+      facet_wrap(~ Stratum, nrow = 2)
   } else {
     data %>%
       filter(!is.na(!!sym(var_str))) %>%
@@ -285,9 +285,13 @@ plotter_box_by_year <- function(var_str, data, facet_bool){
 
 }
 
-sapply(c("TN", "TURB", "SS", "CHLcal"), plotter_box_by_year, water_4L, F)
-sapply(c("TN", "TURB", "SS", "CHLcal"), plotter_box_by_year, water_4L, T)
+sapply(c("TP", "TN", "TURB", "SS", "CHLcal"), plotter_box_by_year, water_4L, F)
+sapply(c("TP", "TN", "TURB", "SS", "CHLcal"), plotter_box_by_year, water_4L, T)
 
+plotter_box_by_year("VEL", water_4L, F)
+ggsave("VEL_boxplot_by_year_pool4L.png")
+plotter_box_by_year("VEL", water_4L, T)
+ggsave("VEL_boxplot_by_year_pool4L_facet.png")
 
 # SS, turbidity, and secchi all three measure water quality
 
@@ -321,24 +325,47 @@ Note: stratum types
 
 ```{r}
 
-water_4L %>%
-  mutate(season = quarter(DATE)) %>%
-  ggplot(aes(x = year, y = TEMP, group = year)) +
-  geom_boxplot() +
-  facet_wrap(~ season)
+# tried to use location code for the seasons but recorded differently...
 
-water_4L %>%
-  mutate(season = quarter(DATE)) %>%
-  ggplot(aes(x = year, y = DO, group = year)) +
-  geom_boxplot() +
-  facet_wrap(~ season)
+seasonalwater <- water_4L %>%
+  mutate(month = month(DATE),
+         Season = case_when(month >= 2 & month <= 4 ~ "Spring",
+                             month >= 5 & month <= 7 ~ "Summer",
+                             month >= 8 & month <= 10 ~ "Fall",
+                             TRUE ~ "Winter"))
 
+seasonalwater$Season <- factor(seasonalwater$Season, 
+                              levels = c("Spring", "Summer",
+                                         "Fall", "Winter"))
 
-water_4L %>%
-  mutate(season = quarter(DATE)) %>%
+ggplot(seasonalwater, aes(x = year, y = TEMP, group = year)) +
+  geom_boxplot(aes(color = Season)) +
+  facet_wrap(~ Season) +
+  ggtitle("Temperature recordings by season") +
+  theme(legend.position = "none") +
+  scale_color_manual(values = brewer.pal(6, "YlGnBu")[3:6])
+
+ggsave("seasonal_temperature_pool4L.png")
+
+ggplot(seasonalwater, aes(x = year, y = DO, group = year)) +
+  geom_boxplot(aes(color = Season)) +
+  facet_wrap(~ Season) +
+  ggtitle("Dissolved Oxygen recordings by season") +
+  theme(legend.position = "none") +
+  scale_color_manual(values = brewer.pal(6, "YlGnBu")[3:6])
+
+seasonalwater %>% filter(CHLcal <= 100) %>%
   ggplot(aes(x = year, y = CHLcal, group = year)) +
-  geom_boxplot() +
-  facet_wrap(~ season)
+  geom_boxplot(aes(color = Season)) +
+  facet_wrap(~ Season) +
+  ggtitle("Chlorophyll A recordings by season",
+          subtitle = "With outlier measurements about 100 removed") +
+  theme(legend.position = "none") +
+  scale_color_manual(values = brewer.pal(6, "YlGnBu")[3:6])
+
+ggsave("seasonal_chlorophyllA_pool4L.png")
+
+# 60 observations removed (out of 6k)
 
 ```
 
