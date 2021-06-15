@@ -436,13 +436,18 @@ getColDist <- function(n_col, df){
   
   location <- getLatLng(n_col, df)
   
+  col_name <- paste(n_col, "_loc", sep = "")
+  
+  col <- data.frame(eval(parse(text = col_name)) = sapply(1:dim(df), getDist, df, location))
+  
   # iterate through each row of the df to generate ONE row
-  return(sapply(1:dim(df), getDist, df, location))
-  
-  
+  return(col)
+
 }
 
-as.matrix(bind_cols(lapply(1:dim(loc_df), getColDist, loc_df)))
+getColDist(1, loc_df)
+
+bind_cols(lapply(1:dim(loc_df), getColDist, loc_df))
 
 
 ```
@@ -457,4 +462,42 @@ lapply(1:dim(big_loc_df), getColDist, big_loc_df)
 ```
 
 
+```{r}
 
+water20 %>% 
+  select(SHEETBAR, TIME, DATE, LONGITUDE, LATITUDE) %>%
+  group_by(SHEETBAR, TIME, DATE, LONGITUDE, LATITUDE) %>%
+  summarize(count = n()) %>%
+  filter(count > 1)
+
+water20 %>% filter(DATE == "06/11/1993")
+
+
+```
+
+```{r}
+
+water20 %>% filter(SHEETBAR == "-4303746")
+
+```
+
+
+```{r}
+
+water20 %>% 
+  filter(SAMPZCD != CALCZCD) %>%
+  select(SHEETBAR, TIME, DATE, LONGITUDE, LATITUDE) %>%
+  group_by(SHEETBAR, TIME, DATE, LONGITUDE, LATITUDE) %>%
+  summarize(count = n()) %>%
+  filter(count > 1)
+
+```
+
+```{r}
+water20 %>% distinct(SHEETBAR) %>% dim()
+```
+
+
+SAMPLE_DEPTH_CODE                  
+SAMPZCD             aa             SF,BT,MD,OT                     1988 TO PRESENT                                   
+CALC_SAMPLE_DEPTH_CODE             CALCZCD             aa             SF,BT,MD,OT 
