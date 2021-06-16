@@ -1,0 +1,47 @@
+---
+title: "Missing data exploration"
+author: "Amber Lee"
+date: "6/15/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+```{r}
+library(tidyverse)
+library(ggplot2)
+library(lubridate)
+library(corrplot)
+library(RColorBrewer)
+```
+
+```{r}
+water20 <- read.csv(file = "pools EDA/pool data/ltrm_water_data_lat_long.csv")
+```
+
+QF codes
+
+Merge rows for when `SHEETCODE` is duplicated
+
+Problems arise when merging
+
+```{r}
+dim(water20)[1] # number of observations
+dim(water20 %>% distinct(SHEETBAR))[1] # number of distinct bar codes
+dim(water20 %>% filter(SAMPZCD != CALCZCD) 
+    %>% distinct(SHEETBAR))[1]
+
+water20 %>% 
+  group_by(SAMPZCD, CALCZCD) %>%
+  summarize(count = n())
+
+(water20 %>% 
+  filter(SAMPZCD == "") %>% dim())[1]
+
+(water20 %>% 
+  filter(CALCZCD == "") %>% dim())[1]
+
+```
+
