@@ -501,3 +501,21 @@ water20 %>% distinct(SHEETBAR) %>% dim()
 SAMPLE_DEPTH_CODE                  
 SAMPZCD             aa             SF,BT,MD,OT                     1988 TO PRESENT                                   
 CALC_SAMPLE_DEPTH_CODE             CALCZCD             aa             SF,BT,MD,OT 
+```{r}
+
+waterQF_var <- paste(water_var, "QF", sep = "")
+
+water20 %>% select(all_of(water_var), all_of(waterQF_var))
+
+water20 %>% group_by(SHEETBAR, STRATUM) %>% summarize(count = n()) %>%
+  filter(count > 1)
+
+```
+
+1. Filter for outliers
+a. Dependent
+b. Independent
+2. How does water depth effect regression?
+3. How does stratum effect regression?
+
+For 2 and 3, can we include them as covariates? 
