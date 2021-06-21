@@ -11,7 +11,7 @@ knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 
 ## Unfinished
 
-Line 177 in the code is where we should filter for the appropriate QF values. Note how `waterQF_var` is defined (line 71). Use the tutorial (very last link) to use `filter_at()`. Based on how I did the filtering, which was to remove *ALL ROWS* for which the QF code is 8, I only get 53,000 rows.
+Is it okay if, after filtering/processing the original data, we only have 105,267 rows? We are only keeping about half of the original data...
 
 ## Summary
 
@@ -35,10 +35,14 @@ library(ggplot2)
 library(lubridate)
 library(corrplot)
 library(RColorBrewer)
+library(kableExtra)
 ```
 
 ```{r}
-water20 <- read.csv(file = "C:\\Users\\forre\\Desktop\\REU\\TDA\\Data\\ltrm_water_data_lat_long_06072021.csv")
+# set working directory to source file location
+# setwd("~/Documents/GitHub/UMR-TDA-2021") 
+
+water20 <- read.csv(file = "pools EDA/pool data/ltrm_water_data_lat_long.csv")
 ```
 
 ## Important variables
@@ -100,10 +104,9 @@ count_duplicates <- data.frame(proportion = sapply(1:8, count_n_duplicates,
                                number_duplicates = 1:8)
 
 ggplot(count_duplicates, aes(x = number_duplicates, y = proportion)) +
-  geom_bar(stat = "identity") +
-  geom_vline(xintercept = 7) 
+  geom_bar(stat = "identity") 
 
-count_duplicates # use kable to make nice table output
+count_duplicates %>% kbl(booktabs = T) 
 
 ```
 
@@ -115,7 +118,9 @@ We look at two `SHEETBAR`s with duplicated rows.
 
 water20 %>% 
   filter(SHEETBAR == -4604347) %>% 
-  select(SHEETBAR, Z, CALCZCD, DO, TP, TN)
+  select(SHEETBAR, Z, CALCZCD, DO, TP, TN) %>%
+  kbl(booktabs = T) %>%
+  kable_styling(latex_options = "striped")
 
 ```
 
@@ -123,7 +128,9 @@ water20 %>%
 
 water20 %>% 
   filter(SHEETBAR == 41015929	) %>% 
-  select(SHEETBAR, Z, CALCZCD, DO, TP, TN)
+  select(SHEETBAR, Z, CALCZCD, DO, TP, TN) %>%
+  kbl(booktabs = T) %>%
+  kable_styling(latex_options = "striped")
 
 ```
 
@@ -149,9 +156,10 @@ filterwater <- water20 %>%
   filter(CALCZCD == "SF") %>%
   select(all_of(water_var))
 
-sapply(filterwater, function(x) sum(is.na(x)/147171))
+sapply(filterwater, function(x) sum(is.na(x)/length(x)))
 
 ```
+
 ### What if CALCZCD is missing?
 
 ```{r}
@@ -160,11 +168,20 @@ sapply(filterwater, function(x) sum(is.na(x)/147171))
   dim())[1]
 ```
 
-There are are about 8000 samples with missing `CALCZCD`. We are 
+There are are about 8000 samples with missing `CALCZCD`. 
+
+But this is okay because when `CALCZCD` is missing, nearly all of our continuous variables are missing too.
+
+```{r}
+sapply((water20 %>% 
+  filter(CALCZCD == "") %>%
+  select(all_of(water_var))), function(x) sum(is.na(x)/length(x)))
+```
+When `CALCZCD` isn't recorded, the rest of the variables aren't recorded. Since these samples represent `r round(8436/204305, digits = 3)` percent of the original data, we decide that it is okay to exclude these observations.
 
 ## Water column variables
 
-WDP, 
+What is the difference between WDP, ZMAX, CALCZCD, SAMPZCD? (Could be answered later because not all these variables will be used in our analysis)
 
 ## Filter for QA/QC
 
@@ -175,10 +192,16 @@ WDP,
 filterwater <- water20 %>%
   filter(CALCZCD == "SF") %>%
   select(all_of(c(identifier_var, water_var, waterQF_var))) %>%
-  filter_at(vars(c("TURBQF","TEMPQF","DOQF","VELQF","ZMAXQF","SECCHIQF","CONDQF")), any_vars(. != "A" | . != 0)) %>%
+  filter_at(vars(c("TURBQF","TEMPQF","DOQF","VELQF",
+                   "ZMAXQF","SECCHIQF","CONDQF")),
+            any_vars(. != "A" | . != 0)) %>%
   # forrest, edit this
-  filter_at(vars(c("TNQF","TPQF","SSQF")), any_vars(. != 8 | . != 64))
-filterwater %>% head()
+  filter_at(vars(c("TNQF","TPQF","SSQF")), 
+            any_vars(. != 8 | . != 64))
+
+filterwater %>% head() %>%
+  kbl(booktabs = T) %>%
+  kable_styling(latex_options = "striped")
 ```
 
 ```{r}
@@ -189,5 +212,5 @@ use this tutorial about `filter_at`
 https://suzan.rbind.io/2018/02/dplyr-tutorial-3/
 
 ```{r}
-write.csv(filterwater, "C:\\Users\\forre\\Desktop\\REU\\TDA\\Data\\water_data_filtered.csv", row.names = FALSE)
+write.csv(filterwater, "water_data_filtered.csv", row.names = FALSE)
 ```
