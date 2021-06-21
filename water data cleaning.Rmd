@@ -50,7 +50,7 @@ water_var <- c('TN','TP','TEMP','DO','TURB',
 
 waterQF_var <- paste(water_var, "QF", sep = "")
 
-identifier_var <- c('SHEETBAR', 'DATE', 'LATITUDE', 'LONGITUDE', 'FLDNUM')
+identifier_var <- c('SHEETBAR', 'DATE', 'LATITUDE', 'LONGITUDE', 'FLDNUM', 'STRATUM', 'LOCATCD')
 
 ```
 
@@ -177,7 +177,7 @@ filterwater <- water20 %>%
   select(all_of(c(identifier_var, water_var, waterQF_var))) %>%
   filter_at(vars(c("TURBQF","TEMPQF","DOQF","VELQF","ZMAXQF","SECCHIQF","CONDQF")), any_vars(. != "A" | . != 0)) %>%
   # forrest, edit this
-  filter_at(vars(c("TNQF","TPQF","SSQF")), all_vars(. != 8 | . != 64))
+  filter_at(vars(c("TNQF","TPQF","SSQF")), any_vars(. != 8 | . != 64))
 filterwater %>% head()
 ```
 
