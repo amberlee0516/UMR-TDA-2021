@@ -83,7 +83,7 @@ tr.TP <- caret::train(TP ~ .,
                       data = (narm_water20 %>% sample_frac(0.5)),
                       method = "rpart2", 
                       trControl = fitControl, 
-                      tuneGrid = data.frame(maxdepth=1:10))
+                      tuneGrid = data.frame(maxdepth=1:20))
 
 fancyRpartPlot(tr.TP$finalModel)
 
@@ -118,7 +118,7 @@ tree_by_years <- function(year_touple, water_data){
                         method = "rpart2", 
                         trControl = fitControl, 
                         # don't quite understand maxdepth
-                        tuneGrid = data.frame(maxdepth=1:10))
+                        tuneGrid = data.frame(maxdepth=1:20))
   
   return(tr.TP)
   
@@ -195,7 +195,7 @@ trees.fa.2000.2020 <- tree_by_season(3, 2000, 2020, 5, narm_water20)
 # the *2 is to insert line breaks
 lapply(1:4*2, function(x)
   if (x %% 2 == 1) { # if x is even
-    asis_output("\\\\[2cm]")
+    asis_output("\\\\[10cm]")
     } else {
       return(fancyRpartPlot(trees.fa.2000.2020[[x/2]]$finalModel,
                             main = paste(as.character(x/2)) ))
