@@ -42,7 +42,7 @@ library(kableExtra)
 # set working directory to source file location
 # setwd("~/Documents/GitHub/UMR-TDA-2021") 
 
-water20 <- read.csv(file = "pools EDA/pool data/ltrm_water_data_lat_long.csv")
+water20 <- read.csv(file = "../LTRM data/ltrm_water_data_lat_long.csv")
 ```
 
 ## Important variables
@@ -212,5 +212,5 @@ use this tutorial about `filter_at`
 https://suzan.rbind.io/2018/02/dplyr-tutorial-3/
 
 ```{r}
-write.csv(filterwater, "water_data_filtered.csv", row.names = FALSE)
+write.csv(filterwater, "../LTRM data/water_data_filtered.csv", row.names = FALSE)
 ```
