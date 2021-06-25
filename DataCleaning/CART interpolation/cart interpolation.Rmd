@@ -104,6 +104,8 @@ water20 <- water20 %>%
 
 # 80/20 
 
+http://st47s.com/Math154/Notes/class.html#r-cart-example
+
 ```{r}
 set.seed(4747)
 
