@@ -6,7 +6,7 @@ output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+knitr::opts_chunk$set(echo = TRUE, message = FALSE)
 ```
 
 ### Load libraries 
@@ -20,6 +20,7 @@ library(rpart.plot)
 library(caret) # for other models
 library(rattle)
 library(kableExtra)
+library(broom)
 ```
 
 ### Read data
@@ -82,7 +83,8 @@ water20 <- water20 %>%
                             FLDNUM == 4 ~ "Brighton, IL",
                             FLDNUM == 5 ~ "Jackson, MO",
                             FLDNUM == 6 ~ "Havana, IL"),
-         FLDNUM = as.factor(FLDNUM)) %>% # CART can split on categorical variable if
+         FLDNUM = as.factor(FLDNUM),
+         STRATUM = as.factor(STRATUM)) %>% # CART can split on categorical variable if
                                          # encoded as a factor variable
   select(-SHEETBAR, -nice_date, -DATE, -LOCATCD) 
 
@@ -136,16 +138,23 @@ https://www.statmethods.net/advstats/cart.html
 
 tr.TP <- rpart(TP ~ .,
                data = watertrain1,
-               control = rpart.control(xval = 10,
+               control = rpart.control(xval = 15,
                                        minsplit = 100)) 
 
 printcp(tr.TP)
+
+png("tree_TP.png")
 fancyRpartPlot(tr.TP)
+dev.off()
+
+png("tree_TP_CV.png")
 plotcp(tr.TP)
+dev.off()
 
 ```
 ```{r}
 summary(tr.TP)
+# tidy(tr.TP) TODO
 ```
 
 https://rstudio-pubs-static.s3.amazonaws.com/27179_e64f0de316fc4f169d6ca300f18ee2aa.html
@@ -161,6 +170,9 @@ bestcp <- tr.TP$cptable[which.min(tr.TP$cptable[,"xerror"]),"CP"]
 bestcp
 
 tr.TP.prune <- prune(tr.TP, cp = bestcp)
+
+data.frame(round(tr.TP.prune$cptable, digits = 3)) %>%
+  kbl(booktabs = T)
 
 ```
 
@@ -187,7 +199,29 @@ watertrain1 %>%
   coord_equal() +
   theme(aspect.ratio = 1) + xlim(0, 2) + ylim(0, 2)
 
+ggsave("tree_training_predictvsactual.png")
+
 ```
+
+```{r}
+watertest1$TP.PREDICT <- predict(tr.TP.prune, watertest1)
+  
+watertest1 <- watertest1 %>%
+  mutate(TP.SQ.ERROR = (TP - TP.PREDICT)^2)
+
+print("RSME is")
+sqrt(sum(watertest1$TP.SQ.ERROR)/dim(watertest1)[1])
+
+watertest1 %>% 
+  ggplot(aes(x = TP, y = TP.PREDICT)) +
+  geom_point(alpha = 0.2) +
+  coord_equal() +
+  theme(aspect.ratio = 1) + xlim(0, 2) + ylim(0, 2)
+
+ggsave("tree_test_predictvsactual.png")
+
+```
+
 
 #### multivariate linear regression
 
@@ -196,33 +230,83 @@ watertrain1 %>%
 watertrain2 <- fullTP[train_idx[,2],]
 watertest2 <- fullTP[-train_idx[,2],]
 
-linreg <- caret::train(TP ~ ., 
-                       data = (watertrain2 %>% 
-                                 filter_all(any_vars(!is.na(.)))), 
-                       method=" method = 'BstLm'")
+# remove all na's because that's how GLM works
+watertrain2 <- watertrain2 %>%
+  filter_all(all_vars(!is.na(.)))
+watertest2 <- watertest2 %>%
+  filter_all(all_vars(!is.na(.)))
+
+linreg <- glm(TP ~ ., data = watertrain2)
 
 summary(linreg)
 
+tidy(linreg) %>% 
+  filter(p.value < 0.05) %>%
+  mutate(estimate = round(estimate, digits = 3),
+         p.value = round(p.value, digits = 3)) %>%
+  select(term, estimate, p.value) %>%
+  kbl(booktabs = T)
+
+tidy(linreg) %>% 
+  filter(p.value >= 0.05) %>%
+  mutate(estimate = round(estimate, digits = 3),
+         p.value = round(p.value, digits = 3)) %>%
+  select(term, estimate, p.value) %>%
+  kbl(booktabs = T)
+
+# watertrain2.selected <- fullTP[train_idx[,2],] %>%
+#   select(all_of(c("TEMP", "DO", "TURB", "COND", "FLDNUM", 
+#                   "CHLcal", "quarter"))) %>%
+#   filter_all(all_vars(!is.na(.))) 
+# TODO remove the missing values here and try to run the regression again, see if it applies to more values
+
 ```
 
 ```{r}
-dim(watertrain2)
-dim(watertest2)
+sum(fitted(linreg) == predict(linreg))
 ```
 
 
-```{t}
-linreg$residuals
+```{r}
+watertrain2$TP.PREDICT <- predict(linreg)
+
+watertrain2 <- watertrain2 %>%
+  mutate(TP.SQ.ERROR = (TP - TP.PREDICT)^2)
+
+print("RSME is")
+sqrt(sum(watertrain2$TP.SQ.ERROR)/dim(watertrain2)[1])
+
+watertrain2 %>% 
+  ggplot(aes(x = TP, y = TP.PREDICT)) +
+  geom_point(alpha = 0.2) +
+  coord_equal() +
+  theme(aspect.ratio = 1) + xlim(0, 2) + ylim(0, 2)
+
+ggsave("glm_train_predictvsactual.png")
+
 ```
 
 
 ```{r}
 
-TP.PREDICT <- predict(tr.TP, data = watertest1)
-watertrain1$TP.PREDICT.TEST <- predict(tr.TP, data = watertest1)
+watertest2$TP.PREDICT <- predict(linreg, watertest2)
+  
+watertest2 <- watertest2 %>%
+  mutate(TP.SQ.ERROR = (TP - TP.PREDICT)^2)
 
+print("RSME is")
+sqrt(sum(watertest2$TP.SQ.ERROR)/dim(watertest2)[1])
+
+watertest2 %>% 
+  ggplot(aes(x = TP, y = TP.PREDICT)) +
+  geom_point(alpha = 0.2) +
+  coord_equal() +
+  theme(aspect.ratio = 1) + xlim(0, 2) + ylim(0, 2)
+
+ggsave("glm_test_predictvsactual.png")
 
 ```
+
 
 
 ### TP by year and season
