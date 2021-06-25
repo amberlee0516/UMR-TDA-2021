@@ -1,0 +1,384 @@
+---
+title: "TN-cart-interpolation"
+author: "Alaina Stockdill"
+data: "6/24/21
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+```{r}
+library(tidyverse)
+library(lubridate)
+library(stringr)
+library(caret)
+library(rattle)
+library(partykit)
+library(rpart)
+```
+# Predicting TN values with CART regression trees
+
+The purpose of this program is to interpolate missing TN values in our data set with CART regression trees. The benefit of the CART regression tree is that they will automatically choose the most important variables in predicting TN and are able to handle missing data very easily. With a data set that contains a large amount of incomplete rows, it seems that this method will be helpful in getting around this issue.
+
+The data set that we are uploading has already been filtered for bad QF codes, negative TP and TN values, and for surface samples in the LTRM water quality data set. SHEETBAR codes that have multiple rows have already been combined so that each possible bar code only has on one row of data. 
+
+
+```{r}
+setwd("/Users/alainastockdill/UMR-TDA-2021/DataCleaning/CART interpolation")
+data <- read.csv(file = "../../LTRM data/cleaned_data.csv")
+
+# Sets the maximum number of nested expressions to be evaluated
+options(expressions = 5e5)
+```
+
+```{r}
+# Remove the columns that we do not want to use as predictors
+# The column 'X' is a result of a minor indexing issue in the python script to combine rows with the same SHEETBAR code
+data <- subset(data, select = -c(X, FLDNUM))
+
+# Add in the date, year, and season
+data <- data %>% 
+  mutate(nice_date = mdy(DATE),
+         year = year(nice_date),
+         season = quarter(nice_date, fiscal_start = 3)) %>%
+  select(-SHEETBAR, -nice_date, -DATE, -LOCATCD)
+```
+
+Here are several different data sets that will serve when necessary
+```{r}
+###  COMPLETE DATA SET ###
+# Create a data set that takes out the 
+comp_data = data %>% 
+  filter_at(vars(names(data)), all_vars(!is.na(.)))
+
+### COMPLETE TN COLUMN ###
+# Create a new data set that removes only the na TN values
+comp_TN_data = data %>%
+  filter_at(vars(TN), any_vars(!is.na(.)))
+
+### REMOVE TN OUTLIERS ###
+rm_out_TN_data = data %>%
+  filter_at(vars(TN), any_vars(!is.na(.)))
+rm_out_TN_data = rm_out_TN_data %>%
+  filter(TN < 100)
+```
+
+## caret rpart2 model for all years and seasons
+Caret cannot have any have any NA values in the data set that it creates the tree on.
+This will be used just a reference since for our purposes, we will being using the rpart package. 
+```{r}
+### CARET MODEL ###
+# Runs the caret rpart model with the complete data set
+# Runs for all years and all seasons
+set.seed(4321)
+fit_control <- caret::trainControl(method = "cv", number = 10)
+tr.TN_caret <- caret::train(TN ~ .,
+                      data = (comp_data %>% sample_frac(0.5)),
+                      method = "rpart2",
+                      trControl = fit_control,
+                      tuneGrid = data.frame(maxdepth = (1:20)))
+
+fancyRpartPlot(tr.TN_caret$finalModel, main = "TN all years")
+```
+
+```{r}
+plot(tr.TN_caret, main = "TN all years")
+```
+
+## rpart model with all years and seasons
+Using the rpart library allows us to create a tree with the entire data set.
+If a value is missing, a surrogate value will be used.
+```{r}
+### RPART MODEL ###
+# Runs on the entire data set - even with na values in all columns
+set.seed(4321)
+tr.TN_rpart <- rpart(TN ~.,
+                    data = (data %>% sample_frac(0.5)),
+                    method = "anova",
+                    control = (maxdepth = 20))
+fancyRpartPlot(tr.TN_rpart, main = "TN prediction for all years")
+```
+
+
+```{r}
+# Tree evaluation summary 
+plotcp(tr.TN_rpart)
+printcp(tr.TN_rpart)
+rsq.rpart(tr.TN_rpart)
+summary(tr.TN_rpart)
+```
+#### GLM model for predicting TN
+The purpose of the GLM model is to get a base performance level for the data set that we are creating a rpart regression tree on in the next step. This will help us to compare the accuracy of the each model.
+
+```{r}
+sample_size = 0.80 * nrow(comp_TN_data)
+set.seed(571)
+train_indices <- sample(seq_len(nrow(comp_TN_data)), size = sample_size)
+
+data_train <- comp_TN_data[train_indices, ]
+data_test <- comp_TN_data[-train_indices, ]
+
+# Generalized linear model 
+TN_glm <- glm(TN ~ .,
+              data = data_train)
+
+
+# Use the model to predict TN on the test data
+data_test$PREDICTED <- predict(TN_glm, data_test)
+
+# Plot actual v. predicted TN for the test data
+ggplot(data_test, mapping = aes(TN, PREDICTED)) +
+  geom_point(alpha = .1) +
+  coord_cartesian(xlim = c(0, 20))
+
+data_test <- data_test %>% filter(!is.na(PREDICTED))
+
+
+RMSE(data_test$TN, data_test$PREDICTED)
+
+cor(data_test$TN, data_test$PREDICTED)
+
+
+```
+
+
+#### Run with test and training data
+
+Create a tree model for all years using the data set that has empty TN values removed. This will be beneficial for testing the effectiveness of the model because we will be able to create a model on the training set, test it on the test data, and then compare the actual versus predicted TN values for 
+
+```{r}
+sample_size = 0.80 * nrow(comp_TN_data)
+set.seed(571)
+train_indices <- sample(seq_len(nrow(comp_TN_data)), size = sample_size)
+
+data_train <- comp_TN_data[train_indices, ]
+data_test <- comp_TN_data[-train_indices, ]
+
+set.seed(4321)
+tr.TN_rpart <- rpart(TN ~.,
+                    data = data_train,
+                    method = "anova",
+                    control = (maxdepth = 20))
+fancyRpartPlot(tr.TN_rpart, main = "TN prediction for all years")
+
+
+# Test the model on both the training and testing data
+data_train$PREDICTED <- predict(tr.TN_rpart, data_train)
+data_test$PREDICTED <- predict(tr.TN_rpart, data_test)
+
+# Plots for actual v. predicted TN values in both the training and testing data
+ggplot(data_train, mapping = aes(TN, PREDICTED)) +
+  geom_point(alpha = 0.1)
+
+ggplot(data_test, mapping = aes(TN, PREDICTED)) +
+  geom_point(alpha = 0.1)
+
+# Get the RMSE and corellation coeefficient for the test data
+RMSE(data_test$TN, data_test$PREDICTED)
+
+cor(data_test$TN, data_test$PREDICTED)
+
+```
+
+
+
+#### Run without outliers and train and test
+To check our model, we will look at what happens when we remove the outliers from the data set. This data is different from before in that there are na TN values
+```{r}
+sample_size = 0.80 * nrow(rm_out_TN_data)
+set.seed(571)
+train_indices <- sample(seq_len(nrow(rm_out_TN_data)), size = sample_size)
+
+data_train <- rm_out_TN_data[train_indices, ]
+data_test <- rm_out_TN_data[-train_indices, ]
+
+set.seed(4321)
+tr.TN_rpart <- rpart(TN ~.,
+                    data = data_train,
+                    method = "anova",
+                    control = (maxdepth = 20))
+fancyRpartPlot(tr.TN_rpart, main = "TN prediction for all years")
+
+# test the model on the training data
+data_train$PREDICTED <- predict(tr.TN_rpart, data_train)
+
+# Plots for actual v. predicted TN values in the training data
+ggplot(data_train, mapping = aes(TN, PREDICTED)) +
+  geom_point(alpha = 0.1)
+
+# Summary stats and plots
+rsq.rpart(tr.TN_rpart) 
+RMSE(data_train$TN, data_train$PREDICTED)
+
+```
+
+
+
+## Predict TN by splitting into different years and seasons
+```{r}
+# Functions for splitting into years and seasons - uses caret::train
+# Split by year and season
+make_year_tuples <- function(index, year_partition) {
+  return(c(year_partition[index], year_partition[index + 1]))
+}
+
+# Creates trees by groups of years 
+tree_by_years <- function(year_tuple, water_data) {
+  water_data <- water_data %>% filter(year >= year_tuple[1] &
+                                      year <= year_tuple[2])
+  
+  fit_control <- caret::trainControl(method = "cv")
+  
+  tr.TN <- caret::train(TN ~ .,
+                       data = water_data,
+                       method = "rpart2",
+                       trControl = fit_control,
+                       tuneGrid = data.frame(maxdepth = (1:20)))
+  
+  return(tr.TN)
+}
+
+# Create trees by season
+tree_by_season <- function(season, min_year, max_year, year_interval, water_data) {
+  year_partition <- seq(min_year, max_year, year_interval)
+  
+  year_tuples <- lapply(1: (length(year_partition) - 1), make_year_tuples, year_partition)
+  
+  water_data <- water_data %>% filter(season == season)
+  
+  tree_models <- lapply(year_tuples, tree_by_years, water_data)
+  
+  return(tree_models)
+
+}
+```
+
+
+```{r}
+# Functions for splitting into years and seasons - using rplot: can have nas
+# Split by year and season
+make_year_tuples <- function(index, year_partition) {
+  return(c(year_partition[index], year_partition[index + 1]))
+}
+
+# Creates trees by groups of years 
+tree_by_years_rpart <- function(year_tuple, water_data) {
+  water_data <- water_data %>% filter(year >= year_tuple[1] &
+                                      year <= year_tuple[2])
+  
+  tr.TN_rpart <- rpart(TN ~.,
+                    data = (water_data %>% sample_frac(0.5)),
+                    method = "anova",
+                    control = (maxdepth = 20))
+  
+  fancyRpartPlot(tr.TN_rpart)
+  
+  return(tr.TN_rpart)
+}
+
+# Create trees by season
+tree_by_season_rpart<- function(season, min_year, max_year, year_interval, water_data) {
+  year_partition <- seq(min_year, max_year, year_interval)
+  
+  year_tuples <- lapply(1: (length(year_partition) - 1), make_year_tuples, year_partition)
+  
+  water_data <- water_data %>% filter(season == season)
+  
+  tree_models <- lapply(year_tuples, tree_by_years_rpart, water_data)
+  
+  return(tree_models)
+
+}
+```
+
+
+### Run the trees by seasons and print the trees and the RMSE plots
+```{r}
+comp_TN_data <- subset(comp_TN_data, select = -season)
+```
+
+#### Spring
+```{r}
+trees.sp.1992.2020 <- tree_by_season_rpart(1, 1992, 2020, 7, comp_TN_data)
+
+```
+
+
+```{r}
+lapply(1:4, function(x) fancyRpartPlot(trees.sp.1992.2020[[x]],
+                                               main = paste(as.character(x)) ))
+```
+
+```{r}
+lapply(1:4, function(x) rsq.rpart(trees.sp.1992.2020[[x]]))
+```
+```{r}
+lapply(1:4, function(x) plotcp(trees.sp.1992.2020[[x]]))
+```
+
+```{r}
+lapply(1:4, function(x) summary(trees.sp.1992.2020[[x]]))
+```
+
+#### Summer
+```{r}
+trees.su.1992.2020 <- tree_by_season_rpart(2, 1992, 2020, 7, data)
+
+```
+
+```{r}
+lapply(1:4, function(x) return(fancyRpartPlot(trees.su.1992.2020[[x]]$finalModel,
+                                               main = paste(as.character(x)) )))
+```
+
+```{r}
+lapply(1:4, function(x) return(plot(trees.su.1992.2020[[x]],
+                                              main = paste(as.character(x)) )))
+```
+
+```{r}
+
+```
+
+
+```{r}
+lapply(1:4, function(x) return )
+
+```
+
+
+#### Fall
+
+```{r}
+trees.fa.1992.2020 <- tree_by_season_rpart(3, 1992, 2020, 7, data)
+
+```
+
+```{r}
+lapply(1:4, function(x) return(fancyRpartPlot(trees.fa.1992.2020[[x]]$finalModel,
+                                               main = paste(as.character(x)) )))
+```
+
+```{r}
+lapply(1:4, function(x) return(plot(trees.fa.1992.2020[[x]],
+                                              main = paste(as.character(x)) )))
+```
+
+#### Winter
+
+```{r}
+trees.wi.1992.2020 <- tree_by_season_rpart(4, 1992, 2020, 7, data)
+
+```
+
+```{r}
+lapply(1:4, function(x) return(fancyRpartPlot(trees.wi.1992.2020[[x]]$finalModel,
+                                               main = paste(as.character(x)) )))
+```
+
+```{r}
+lapply(1:4, function(x) return(plot(trees.wi.1992.2020[[x]],
+                                              main = paste(as.character(x)) )))
+```
