@@ -220,6 +220,18 @@ water20 %>%
 
 ```
 
+```{r}
+# Collapse the duplicate columns
+sheetbar_counts <- water20 %>%
+  group_by(SHEETBAR) %>%
+  summarize(count = n()) %>%
+  arrange(-count)
+
+sheetbar_dups <- sheetbar_counts %<% filter (counts > )
+
+```
+
+
 
 ## Combine
 
