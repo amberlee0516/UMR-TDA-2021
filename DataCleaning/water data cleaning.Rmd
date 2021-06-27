@@ -179,11 +179,37 @@ sapply((water20 %>%
 ```
 When `CALCZCD` isn't recorded, the rest of the variables aren't recorded. Since these samples represent `r round(8436/204305, digits = 3)` percent of the original data, we decide that it is okay to exclude these observations.
 
+```{r}
+water20 <- water20 %>% filter(CALCZCD == "SF")
+```
+
+
 ## Water column variables
 
 What is the difference between WDP, ZMAX, CALCZCD, SAMPZCD? (Could be answered later because not all these variables will be used in our analysis)
 
 ## Filter for QA/QC
+
+[Explain the rules]
+
+```{r}
+
+badqf7 <- water20 %>% 
+  filter_at(vars(c(TURBQF, TEMPQF, DOQF, VELQF, ZMAXQF,
+                   SECCHIQF, CONDQF)),
+            any_vars(. == "A" | . == "0"))
+  
+badqf3 <- water20 %>% 
+  filter_at(vars(c(TNQF,TPQF,SSQF)), 
+            any_vars(. == 8 | . == 64))
+
+badqf <- full_join(badqf7, badqf3, by = "SHEETBAR")
+
+# take !badqf & water20
+
+
+```
+
 
 ## Combine
 
@@ -198,7 +224,7 @@ filterwater <- water20 %>%
   # forrest, edit this
   filter_at(vars(c("TNQF","TPQF","SSQF")), 
             any_vars(. != 8 | . != 64))
-
+# THIS IS BUGGY BECAUSE WE WANT THE LAST TWO FILTER CODES TO BE OR
 filterwater %>% head() %>%
   kbl(booktabs = T) %>%
   kable_styling(latex_options = "striped")
