@@ -207,6 +207,16 @@ badqf <- full_join(badqf7, badqf3, by = "SHEETBAR")
 
 # take !badqf & water20
 
+badqf %>%
+  group_by(SHEETBAR) %>%
+  summarize(count = n()) %>%
+  arrange(-count)
+
+
+water20 %>%
+  group_by(SHEETBAR) %>%
+  summarize(count = n()) %>%
+  arrange(-count)
 
 ```
 
@@ -215,7 +225,7 @@ badqf <- full_join(badqf7, badqf3, by = "SHEETBAR")
 
 ```{r}
 
-filterwater <- water20 %>%
+badfilterwater <- water20 %>%
   filter(CALCZCD == "SF") %>%
   select(all_of(c(identifier_var, water_var, waterQF_var))) %>%
   filter_at(vars(c("TURBQF","TEMPQF","DOQF","VELQF",
