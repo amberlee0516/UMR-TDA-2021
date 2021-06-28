@@ -399,8 +399,8 @@ row_collapse <- function(data, water_var, identifier_var) {
   data_dups <- data[data$SHEETBAR %in% sheetbar_dups$SHEETBAR, ] # 74
 
   # Set aside the rows with sheetbars that only occur once
-  water_cleaned <- data[!(data$SHEETBAR %in% sheetbar_dups$SHEETBAR), ]
-    
+  water_cleaned <- data[!(data$SHEETBAR %in% sheetbar_dups$SHEETBAR), ] %>%
+    select(all_of(c(identifier_var, water_var)))
     
   # Average the continuous vars and re-merge the identifiers to the collapsed rows
   data_dups_ids <- data_dups[identifier_var]
@@ -410,33 +410,34 @@ row_collapse <- function(data, water_var, identifier_var) {
                          by = list(data_dups$SHEETBAR), 
                          FUN = mean,
                          na.rm = TRUE,
-                         na.action = na.pass)
-  colnames(data_dups)[colnames(data_dups) == 'Group.1'] <- 'SHEETBAR'
+                         na.action = na.pass) %>%
+    rename('SHEETBAR' = 'Group.1') 
   
   # Rounds the data frame
   is.num <-sapply(data_dups, is.numeric)
   data_dups[is.num] <- lapply(data_dups[is.num], round, 2)
-  
+
   # Replace NaN with Na to be consistent with the rest of the data
   data_dups[is.na(data_dups)] <- NA
-  
+
   # Merge the ids back to the water_vars
-  data_dups <- unique(merge(data_dups, data_dups_ids, by = 'SHEETBAR'))
-  
+  data_dups <- unique(merge(data_dups, data_dups_ids, by = 'SHEETBAR')) 
+
   # Add the collapsed rows to the cleaned data
-  water_cleaned <- rbind(water_cleaned, data_dups) 
-    
+  water_cleaned <- rbind(water_cleaned, data_dups)
+
   return(water_cleaned)
     
 }
+
 ```
 
 
 ```{r}
 # Just continuous vars and identifiers (remove QF columns)
-qfwater20 <- qfwater20[c(water_var, identifier_var)]
 
-qfwater20 <- row_collapse(qfwater20, water_var, identifier_var)
+qfwater20 <- row_collapse(qfwater20[c(water_var, identifier_var)], 
+                          water_var, identifier_var)
 
 ```
 
@@ -448,8 +449,10 @@ However, notice that there are actually quite a few negative values in the fixed
 
 ```{r}
 
-tmp <- replace(qfwater20[water_var[water_var != "TEMP"]], 
-               qfwater20[water_var[water_var != "TEMP"]] < 0, NA)
+tmp <- qfwater20 %>%
+  mutate(across(water_var[water_var != "TEMP"], ~ ifelse(. < 0, NA, .)))
+
+
 
 
 lapply(water_var[!(water_var %in% c("WDP", "CHLcal"))], function(var, df) 
