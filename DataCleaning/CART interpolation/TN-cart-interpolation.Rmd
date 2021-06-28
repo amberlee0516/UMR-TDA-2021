@@ -36,7 +36,7 @@ options(expressions = 5e5)
 ```{r}
 # Remove the columns that we do not want to use as predictors
 # The column 'X' is a result of a minor indexing issue in the python script to combine rows with the same SHEETBAR code
-data <- subset(data, select = -c(X, FLDNUM))
+data <- subset(data, select = -c(X, LONGITUDE, LATITUDE))
 
 # Add in the date, year, and season
 data <- data %>% 
@@ -44,6 +44,11 @@ data <- data %>%
          year = year(nice_date),
          season = quarter(nice_date, fiscal_start = 3)) %>%
   select(-SHEETBAR, -nice_date, -DATE, -LOCATCD)
+
+# Make the FLDNUM and STRATUM categorical variables
+data$FLDNUM <- as.character(data$FLDNUM)
+data$STRATUM <- as.character(data$STRATUM)
+data$season <- as.character(data$season)
 ```
 
 Here are several different data sets that will serve when necessary
@@ -175,7 +180,7 @@ ggplot(data_train, mapping = aes(TN, PREDICTED)) +
 ggplot(data_test, mapping = aes(TN, PREDICTED)) +
   geom_point(alpha = 0.1)
 
-# Get the RMSE and corellation coeefficient for the test data
+# Get the RMSE and correlation coefficient for the test data
 RMSE(data_test$TN, data_test$PREDICTED)
 
 cor(data_test$TN, data_test$PREDICTED)
@@ -337,11 +342,6 @@ lapply(1:4, function(x) return(fancyRpartPlot(trees.su.1992.2020[[x]]$finalModel
 lapply(1:4, function(x) return(plot(trees.su.1992.2020[[x]],
                                               main = paste(as.character(x)) )))
 ```
-
-```{r}
-
-```
-
 
 ```{r}
 lapply(1:4, function(x) return )
