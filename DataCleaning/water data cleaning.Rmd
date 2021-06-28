@@ -256,10 +256,16 @@ water_cleaned <- water20[!(water20$SHEETBAR %in% sheetbar_dups$SHEETBAR), ]
 # Average the continuous vars and re-merge the identifiers to the collapsed rows
 data_dups_ids <- data_dups[identifier_var]
 
-data_dups <- aggregate(data_dups[water_var], by = list(data_dups$SHEETBAR), FUN = mean)
+data_dups <- aggregate(data_dups[water_var], 
+                       by = list(data_dups$SHEETBAR), 
+                       FUN = mean,
+                       na.rm = TRUE,
+                       na.action = na.pass)
 
 colnames(data_dups)[colnames(data_dups) == 'Group.1'] <- 'SHEETBAR'
-data_dups <- unique(merge(data_dups, data_dups_ids, by = 'SHEETBAR'))
+data_dups <- data_dups %>% replace_na(replace = list(x = 'NaN'))
+
+data_dups[is.nan(data_dups)] <- NA
 
 # Add the collapsed rows to the cleaned data
 water_cleaned <- rbind(water_cleaned, data_dups)
