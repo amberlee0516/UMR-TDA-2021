@@ -54,7 +54,7 @@ water_var <- c('TN','TP','TEMP','DO','TURB',
 
 waterQF_var <- paste(water_var, "QF", sep = "")
 
-identifier_var <- c('SHEETBAR', 'DATE', 'LATITUDE', 'LONGITUDE', 'FLDNUM', 'STRATUM', 'LOCATCD')
+identifier_var <- c('SHEETBAR', 'DATE', 'LATITUDE', 'LONGITUDE', 'FLDNUM', 'STRATUM', 'LOCATCD', 'SITETYPE')
 
 ```
 
@@ -181,6 +181,12 @@ When `CALCZCD` isn't recorded, the rest of the variables aren't recorded. Since 
 
 ```{r}
 water20 <- water20 %>% filter(CALCZCD == "SF")
+```
+
+We also will not be using any of the fixed sites for interpolation or TDA. We will remove these rows with the SITETYPE value '2'
+
+```{r}
+water20 <- water20 %>% filter(SITETYPE != 2)
 ```
 
 
