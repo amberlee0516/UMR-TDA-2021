@@ -225,20 +225,27 @@ water20 %>%
 
 ```
 
-```{r}
+## Combine the rows that have the same SHEETBAR code
+The purpose of this next component is to clean the current data set and remove the remaining rows with non-unique barcodes (SHEETBAR). This will be done by combining or "collapsing" the rows with he same barcode. While filtering for the samples taken at the surface of the river (CALCZCD == "SF") accounted for a majority of the rows with identical barcodes, there are still several rows that need to be removed.
 
+It is important that our data sets consists only of unique barcodes because it removes issues when using interpolating the data and predicting our missing continuous variable values. Some of the TN and TP values that appear to be missing for a sample sites are in fact not missing and can be found in a different row of the data with the same sample site. In other words, if a missing value is actually just misplaced, there is no need to interpolate it. 
+
+In each instance of multiple rows with the same SHEETBAR, there will be some combinations of sample and NA values for each continuous variable. Since our goal is combine it to combine the rows with the same SHEETBAR, we will find the average for each column, excluding the DATE, STRATUM, LOCATCD, LATITUDE and LONGITUDE columns.
+
+The data set at this point should have already been filtered for the surface samples and bad QF codes.
+
+
+```{r}
 # Just continuous vars and identifiers
 water20 <- water20[c(water_var, identifier_var)]
 
-# Collapse the duplicate columns
+# Count how many rows each SHEETBAR has
 sheetbar_counts <- water20 %>%
   group_by(SHEETBAR) %>%
   dplyr::summarize(count = n()) %>%
   arrange(-count)
 
-sheetbar_counts
-
-
+# Filter for 
 sheetbar_dups <- sheetbar_counts %>% filter(count > 1)
 
 # Either of these work
