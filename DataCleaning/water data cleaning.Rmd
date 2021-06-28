@@ -1,6 +1,6 @@
 ---
-title: "Filtering water quality dataset"
-author: "Amber Lee"
+title: "LTRM Water Data Cleaning"
+author: "Amber Lee and Alaina Stockdill"
 date: "6/15/2021"
 output: pdf_document
 ---
