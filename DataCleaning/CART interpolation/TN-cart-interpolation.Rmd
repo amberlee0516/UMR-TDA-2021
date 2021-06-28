@@ -382,3 +382,9 @@ lapply(1:4, function(x) return(fancyRpartPlot(trees.wi.1992.2020[[x]]$finalModel
 lapply(1:4, function(x) return(plot(trees.wi.1992.2020[[x]],
                                               main = paste(as.character(x)) )))
 ```
+
+### Filtering by a FIELDNU<
+
+
+
+
