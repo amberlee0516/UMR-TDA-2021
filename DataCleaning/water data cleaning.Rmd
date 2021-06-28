@@ -235,40 +235,58 @@ In each instance of multiple rows with the same SHEETBAR, there will be some com
 The data set at this point should have already been filtered for the surface samples and bad QF codes.
 
 ```{r}
-# Just continuous vars and identifiers
-water20 <- water20[c(water_var, identifier_var)]
-
+# Collapse the rows with the same SHEETBAR code
+row_collapse <- function(data, water_var, identifier_var) {
+  
 # Count how many rows each sheetbar has
-sheetbar_counts <- water20 %>%
+sheetbar_counts <- data %>%
   group_by(SHEETBAR) %>%
   dplyr::summarize(count = n()) %>%
   arrange(-count)
 
 # Filter for the sheetbars that have multiple rows
 sheetbar_dups <- sheetbar_counts %>% filter(count > 1)
-data_dups <- water20[water20$SHEETBAR %in% sheetbar_dups$SHEETBAR, ]
+data_dups <- data[data$SHEETBAR %in% sheetbar_dups$SHEETBAR, ]
 #data_dups <- match_df(water20, sheetbar_dups, on = 'SHEETBAR') 
 
 # Set aside the rows with sheetbars that only occur once
-water_cleaned <- water20[!(water20$SHEETBAR %in% sheetbar_dups$SHEETBAR), ]
+water_cleaned <- data[!(data$SHEETBAR %in% sheetbar_dups$SHEETBAR), ]
 
 
 # Average the continuous vars and re-merge the identifiers to the collapsed rows
 data_dups_ids <- data_dups[identifier_var]
 
+# Find the mean of the continuous variables
 data_dups <- aggregate(data_dups[water_var], 
                        by = list(data_dups$SHEETBAR), 
                        FUN = mean,
                        na.rm = TRUE,
                        na.action = na.pass)
-
 colnames(data_dups)[colnames(data_dups) == 'Group.1'] <- 'SHEETBAR'
-data_dups <- data_dups %>% replace_na(replace = list(x = 'NaN'))
 
-data_dups[is.nan(data_dups)] <- NA
+# Rounds the data frame
+is.num <-sapply(data_dups, is.numeric)
+data_dups[is.num] <- lapply(data_dups[is.num], round, 2)
+
+# Replace NaN with Na to be consistent with the rest of the data
+data_dups[is.na(data_dups)] <- NA
+
+# Merge the ids back to the water_vars
+data_dups <- unique(merge(data_dups, data_dups_ids, by = 'SHEETBAR'))
 
 # Add the collapsed rows to the cleaned data
-water_cleaned <- rbind(water_cleaned, data_dups)
+water_cleaned <- rbind(water_cleaned, data_dups) 
+  
+return(water_cleaned)
+}
+```
+
+
+```{r}
+# Just continuous vars and identifiers
+water20 <- water20[c(water_var, identifier_var)]
+
+water20 <- row_collapse(water20, water_var, identifier_var)
 
 ```
 
@@ -277,7 +295,7 @@ Due to bad readings when sampling, there are negative values for some of the con
 
 ```{r}
 #replace(water_cleaned[water_var], which(water_cleaned[water_var] < 0), NA)
-water_cleaned[water_var][water_cleaned[water_var] < 0 ] <- NA
+water20[water_var][water20[water_var] < 0 ] <- NA
 ```
 
 
