@@ -383,8 +383,53 @@ lapply(1:4, function(x) return(plot(trees.wi.1992.2020[[x]],
                                               main = paste(as.character(x)) )))
 ```
 
-### Filtering by a FIELDNU<
+### Filtering by a FIELDNUM
+water4 <- data %>% filter(FLDNUM == "1")
 
+```{r}
+### RPART MODEL ###
+# Runs on the entire data set - even with na values in all columns
+set.seed(4321)
+water4_rpart <- rpart(TN ~.,
+                    data = (water4 %>% sample_frac(0.7)),
+                    method = "anova",
+                    control = (maxdepth = 20))
+fancyRpartPlot(water4_rpart, main = "TN prediction for pool 4 - all years")
+```
+With training and testing
+```{r}
+sample_size = 0.80 * nrow(water4)
+set.seed(571)
+train_indices <- sample(seq_len(nrow(water4)), size = sample_size)
+
+data_train <- water4[train_indices, ]
+data_test <- water4[-train_indices, ]
+
+set.seed(4321)
+water4_rpart2 <- rpart(TN ~.,
+                    data = data_train,
+                    method = "anova",
+                    control = (maxdepth = 20))
+fancyRpartPlot(water4_rpart2, main = "TN prediction in pool 4 - all years")
+
+
+# Test the model on both the training and testing data
+data_train$PREDICTED <- predict(water4_rpart2, data_train)
+data_test$PREDICTED <- predict(water4_rpart2, data_test)
+
+# Plots for actual v. predicted TN values in both the training and testing data
+ggplot(data_train, mapping = aes(TN, PREDICTED)) +
+  geom_point(alpha = 0.1)
+
+ggplot(data_test, mapping = aes(TN, PREDICTED)) +
+  geom_point(alpha = 0.1)
+
+# Get the RMSE and correlation coefficient for the test data
+RMSE(data_train$TN, data_train$PREDICTED, na.rm = TRUE)
+
+cor(data_test$TN, data_test$PREDICTED, use = "complete.obs")
+
+```
 
 
 
