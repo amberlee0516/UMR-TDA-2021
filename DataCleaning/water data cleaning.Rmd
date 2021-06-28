@@ -91,7 +91,7 @@ We visualize duplicates as follows. To identify the duplicate rows, we count the
 duplicates <- water20 %>% 
   select(SHEETBAR) %>%
   group_by(SHEETBAR) %>%
-  summarize(count = n()) 
+  dplyr::summarize(count = n()) 
 
 duplicates %>% head()
 
@@ -203,31 +203,68 @@ badqf3 <- water20 %>%
   filter_at(vars(c(TNQF,TPQF,SSQF)), 
             any_vars(. == 8 | . == 64))
 
-badqf <- full_join(badqf7, badqf3, by = "SHEETBAR")
+# These can be put in the same line
+badqf <- rbind(badqf7, badqf3) 
+badqf <- unique(badqf)
+
+# If 
+
 
 # take !badqf & water20
 
 badqf %>%
   group_by(SHEETBAR) %>%
-  summarize(count = n()) %>%
+  dplyr::summarize(count = n()) %>%
   arrange(-count)
 
 
 water20 %>%
   group_by(SHEETBAR) %>%
-  summarize(count = n()) %>%
+  dplyr::summarize(count = n()) %>%
   arrange(-count)
 
 ```
 
 ```{r}
+
+# Just continuous vars and identifiers
+water20 <- water20[c(water_var, identifier_var)]
+
 # Collapse the duplicate columns
 sheetbar_counts <- water20 %>%
   group_by(SHEETBAR) %>%
-  summarize(count = n()) %>%
+  dplyr::summarize(count = n()) %>%
   arrange(-count)
 
-sheetbar_dups <- sheetbar_counts %<% filter (counts > )
+sheetbar_counts
+
+
+sheetbar_dups <- sheetbar_counts %>% filter(count > 1)
+
+# Either of these work
+data_dups <- water20[water20$SHEETBAR %in% sheetbar_dups$SHEETBAR, ]
+#data_dups <- match_df(water20, sheetbar_dups, on = 'SHEETBAR') 
+
+# Cleaned data
+water_cleaned <- water20[!(water20$SHEETBAR %in% sheetbar_dups$SHEETBAR), ]
+
+
+data_dups_ids <- data_dups[identifier_var]
+
+data_dups <- aggregate(data_dups[water_var], by = list(data_dups$SHEETBAR), FUN = mean)
+
+colnames(data_dups)[colnames(data_dups) == 'Group.1'] <- 'SHEETBAR'
+
+data_dups <- unique(merge(data_dups, data_dups_ids, by = 'SHEETBAR'))
+
+
+
+
+water_cleaned <- rbind(water_cleaned, data_dups)
+  
+# Replace negatives with NA
+#replace(water_cleaned[water_var], which(water_cleaned[water_var] < 0), NA)
+#water_cleaned[water_var][water_cleaned[water_var] < 0 ] <- NA
 
 ```
 
