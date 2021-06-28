@@ -234,47 +234,45 @@ In each instance of multiple rows with the same SHEETBAR, there will be some com
 
 The data set at this point should have already been filtered for the surface samples and bad QF codes.
 
-
 ```{r}
 # Just continuous vars and identifiers
 water20 <- water20[c(water_var, identifier_var)]
 
-# Count how many rows each SHEETBAR has
+# Count how many rows each sheetbar has
 sheetbar_counts <- water20 %>%
   group_by(SHEETBAR) %>%
   dplyr::summarize(count = n()) %>%
   arrange(-count)
 
-# Filter for 
+# Filter for the sheetbars that have multiple rows
 sheetbar_dups <- sheetbar_counts %>% filter(count > 1)
-
-# Either of these work
 data_dups <- water20[water20$SHEETBAR %in% sheetbar_dups$SHEETBAR, ]
 #data_dups <- match_df(water20, sheetbar_dups, on = 'SHEETBAR') 
 
-# Cleaned data
+# Set aside the rows with sheetbars that only occur once
 water_cleaned <- water20[!(water20$SHEETBAR %in% sheetbar_dups$SHEETBAR), ]
 
 
+# Average the continuous vars and re-merge the identifiers to the collapsed rows
 data_dups_ids <- data_dups[identifier_var]
 
 data_dups <- aggregate(data_dups[water_var], by = list(data_dups$SHEETBAR), FUN = mean)
 
 colnames(data_dups)[colnames(data_dups) == 'Group.1'] <- 'SHEETBAR'
-
 data_dups <- unique(merge(data_dups, data_dups_ids, by = 'SHEETBAR'))
 
-
-
-
+# Add the collapsed rows to the cleaned data
 water_cleaned <- rbind(water_cleaned, data_dups)
-  
-# Replace negatives with NA
-#replace(water_cleaned[water_var], which(water_cleaned[water_var] < 0), NA)
-#water_cleaned[water_var][water_cleaned[water_var] < 0 ] <- NA
 
 ```
 
+## Replace negative values with NA
+Due to bad readings when sampling, there are negative values for some of the continuous variables. Since we do not want to throw away data that is mostly usable, we will replace the negative value and instead interpolate the value.
+
+```{r}
+#replace(water_cleaned[water_var], which(water_cleaned[water_var] < 0), NA)
+water_cleaned[water_var][water_cleaned[water_var] < 0 ] <- NA
+```
 
 
 ## Combine
