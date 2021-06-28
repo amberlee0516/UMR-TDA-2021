@@ -1,7 +1,7 @@
 ---
 title: "TN-cart-interpolation"
 author: "Alaina Stockdill"
-data: "6/24/21
+data: "6/24/21"
 output: pdf_document
 ---
 
@@ -27,17 +27,14 @@ The data set that we are uploading has already been filtered for bad QF codes, n
 
 ```{r}
 setwd("/Users/alainastockdill/UMR-TDA-2021/DataCleaning/CART interpolation")
-data <- read.csv(file = "../../LTRM data/cleaned_data.csv")
+data <- read.csv(file = "../../LTRM data/water_data_qfneg.csv")
 
 # Sets the maximum number of nested expressions to be evaluated
 options(expressions = 5e5)
 ```
 
-```{r}
-# Remove the columns that we do not want to use as predictors
-# The column 'X' is a result of a minor indexing issue in the python script to combine rows with the same SHEETBAR code
-data <- subset(data, select = -c(X, LONGITUDE, LATITUDE))
 
+```{r}
 # Add in the date, year, and season
 data <- data %>% 
   mutate(nice_date = mdy(DATE),
@@ -49,12 +46,15 @@ data <- data %>%
 data$FLDNUM <- as.character(data$FLDNUM)
 data$STRATUM <- as.character(data$STRATUM)
 data$season <- as.character(data$season)
+
+# Set pred_col to the columns that we want to use as predictors
+pred_col <- names(data)
 ```
 
 Here are several different data sets that will serve when necessary
 ```{r}
 ###  COMPLETE DATA SET ###
-# Create a data set that takes out the 
+# Create a data set that takes out the NA values
 comp_data = data %>% 
   filter_at(vars(names(data)), all_vars(!is.na(.)))
 
@@ -99,7 +99,7 @@ If a value is missing, a surrogate value will be used.
 ### RPART MODEL ###
 # Runs on the entire data set - even with na values in all columns
 set.seed(4321)
-tr.TN_rpart <- rpart(TN ~.,
+tr.TN_rpart <- rpart(TN ~ pred_col,
                     data = (data %>% sample_frac(0.5)),
                     method = "anova",
                     control = (maxdepth = 20))
@@ -114,6 +114,7 @@ printcp(tr.TN_rpart)
 rsq.rpart(tr.TN_rpart)
 summary(tr.TN_rpart)
 ```
+
 #### GLM model for predicting TN
 The purpose of the GLM model is to get a base performance level for the data set that we are creating a rpart regression tree on in the next step. This will help us to compare the accuracy of the each model.
 
@@ -142,19 +143,18 @@ data_test <- data_test %>% filter(!is.na(PREDICTED))
 
 
 RMSE(data_test$TN, data_test$PREDICTED)
-
+mae(data_test$TN, data_test$PREDICTED)
 cor(data_test$TN, data_test$PREDICTED)
-
 
 ```
 
-
-#### Run with test and training data
-
+### Run with test and training data
 Create a tree model for all years using the data set that has empty TN values removed. This will be beneficial for testing the effectiveness of the model because we will be able to create a model on the training set, test it on the test data, and then compare the actual versus predicted TN values for 
 
+#### Run using comp_tn_data: a complete TN row
+
 ```{r}
-sample_size = 0.80 * nrow(comp_TN_data)
+sample_size = 0.80 * nrow()
 set.seed(571)
 train_indices <- sample(seq_len(nrow(comp_TN_data)), size = sample_size)
 
@@ -162,7 +162,7 @@ data_train <- comp_TN_data[train_indices, ]
 data_test <- comp_TN_data[-train_indices, ]
 
 set.seed(4321)
-tr.TN_rpart <- rpart(TN ~.,
+tr.TN_rpart1 <- rpart(TN ~ pred_col,
                     data = data_train,
                     method = "anova",
                     control = (maxdepth = 20))
@@ -181,12 +181,46 @@ ggplot(data_test, mapping = aes(TN, PREDICTED)) +
   geom_point(alpha = 0.1)
 
 # Get the RMSE and correlation coefficient for the test data
+mae(data_test$TN, data_test$PREDICTED)
 RMSE(data_test$TN, data_test$PREDICTED)
-
+mse(data_test$TN, data_test$PREDICTED)
 cor(data_test$TN, data_test$PREDICTED)
-
 ```
 
+#### Run with the original TN column in the data set
+```{r}
+sample_size = 0.80 * nrow()
+set.seed(7362)
+train_indices <- sample(seq_len(nrow(data)), size = sample_size)
+
+data_train <- data_train[train_indices, ]
+data_test <- data[-train_indices, ]
+
+set.seed(2847)
+tr.TN_rpart2 <- rpart(TN ~ pred_col,
+                    data = data_train,
+                    method = "anova",
+                    control = (maxdepth = 20))
+fancyRpartPlot(tr.TN_rpart, main = "TN prediction for all years")
+
+
+# Test the model on both the training and testing data
+data_train$PREDICTED <- predict(tr.TN_rpart, data_train)
+data_test$PREDICTED <- predict(tr.TN_rpart, data_test)
+
+# Plots for actual v. predicted TN values in both the training and testing data
+ggplot(data_train, mapping = aes(TN, PREDICTED)) +
+  geom_point(alpha = 0.1)
+
+ggplot(data_test, mapping = aes(TN, PREDICTED)) +
+  geom_point(alpha = 0.1)
+
+# Get the RMSE and correlation coefficient for the test data
+mae(data_test$TN, data_test$PREDICTED)
+RMSE(data_test$TN, data_test$PREDICTED)
+mse(data_test$TN, data_test$PREDICTED)
+cor(data_test$TN, data_test$PREDICTED)
+```
 
 
 #### Run without outliers and train and test
@@ -219,9 +253,7 @@ RMSE(data_train$TN, data_train$PREDICTED)
 
 ```
 
-
-
-## Predict TN by splitting into different years and seasons
+## Predict TN by splitting into different years and seasons using caret
 ```{r}
 # Functions for splitting into years and seasons - uses caret::train
 # Split by year and season
@@ -260,11 +292,11 @@ tree_by_season <- function(season, min_year, max_year, year_interval, water_data
 }
 ```
 
-
+## Predict TN with year and season split - RPART
 ```{r}
 # Functions for splitting into years and seasons - using rplot: can have nas
 # Split by year and season
-make_year_tuples <- function(index, year_partition) {
+make_year_tuples <- functon(index, year_partition) {
   return(c(year_partition[index], year_partition[index + 1]))
 }
 
@@ -296,56 +328,91 @@ tree_by_season_rpart<- function(season, min_year, max_year, year_interval, water
   return(tree_models)
 
 }
+
+# Test the accuracy of the model with a train and test set
+train_test_rpart <- function(model, data, pred_col) {
+  sample_size = 0.80 * nrow()
+  set.seed(7362)
+  train_indices <- sample(seq_len(nrow(data)), size = sample_size)
+  
+  data_train <- data_train[train_indices, ]
+  data_test <- data[-train_indices, ]
+  
+  set.seed(2847)
+  tr.TN_rpart2 <- rpart(TN ~ pred_col,
+                      data = data_train,
+                      method = "anova",
+                      control = (maxdepth = 20))
+  fancyRpartPlot(tr.TN_rpart, main = "TN prediction for all years")
+  
+  
+  # Test the model on both the training and testing data
+  data_train$PREDICTED <- predict(tr.TN_rpart, data_train)
+  data_test$PREDICTED <- predict(tr.TN_rpart, data_test)
+  
+  # Plots for actual v. predicted TN values in both the training and testing data
+  ggplot(data_train, mapping = aes(TN, PREDICTED)) +
+    geom_point(alpha = 0.1)
+  
+  ggplot(data_test, mapping = aes(TN, PREDICTED)) +
+    geom_point(alpha = 0.1)
+  
+  # Get the RMSE and correlation coefficient for the test data
+  mae(data_test$TN, data_test$PREDICTED)
+  RMSE(data_test$TN, data_test$PREDICTED)
+  mse(data_test$TN, data_test$PREDICTED)
+  cor(data_test$TN, data_test$PREDICTED)
+}
 ```
 
 
 ### Run the trees by seasons and print the trees and the RMSE plots
-```{r}
-comp_TN_data <- subset(comp_TN_data, select = -season)
+```{r} 
+#Why is this in here?
+#comp_TN_data <- subset(comp_TN_data, select = -season)
 ```
 
 #### Spring
-```{r}
-trees.sp.1992.2020 <- tree_by_season_rpart(1, 1992, 2020, 7, comp_TN_data)
 
+```{r}
+# Split into groups of 7 years
+trees.sp.1992.2020 <- tree_by_season_rpart(1, 1992, 2020, 7, comp_TN_data)
 ```
 
 
 ```{r}
+# Print the trees
 lapply(1:4, function(x) fancyRpartPlot(trees.sp.1992.2020[[x]],
                                                main = paste(as.character(x)) ))
 ```
 
 ```{r}
+# Print out summary plots and stats
 lapply(1:4, function(x) rsq.rpart(trees.sp.1992.2020[[x]]))
-```
-```{r}
 lapply(1:4, function(x) plotcp(trees.sp.1992.2020[[x]]))
+lapply(1:4, function(x) summary(trees.sp.1992.2020[[x]]))
+
+# Need to check if this will work
+lapply(1:4, function(x) return(train_test_rpart(trees.sp.1992.2020[[x]], comp_TN_data, pred_col)))
 ```
 
-```{r}
-lapply(1:4, function(x) summary(trees.sp.1992.2020[[x]]))
-```
 
 #### Summer
 ```{r}
-trees.su.1992.2020 <- tree_by_season_rpart(2, 1992, 2020, 7, data)
+trees.su.1992.2020 <- tree_by_season_rpart(2, 1992, 2020, 7, comp_TN_data)
 
 ```
 
 ```{r}
-lapply(1:4, function(x) return(fancyRpartPlot(trees.su.1992.2020[[x]]$finalModel,
-                                               main = paste(as.character(x)) )))
+lapply(1:4, function(x) fancyRpartPlot(trees.su.1992.2020[[x]],
+                                               main = paste(as.character(x)) ))
 ```
 
 ```{r}
-lapply(1:4, function(x) return(plot(trees.su.1992.2020[[x]],
-                                              main = paste(as.character(x)) )))
-```
-
-```{r}
-lapply(1:4, function(x) return )
-
+# Print out summary plots and stats
+lapply(1:4, function(x) rsq.rpart(trees.su.1992.2020[[x]]))
+lapply(1:4, function(x) plotcp(trees.su.1992.2020[[x]]))
+lapply(1:4, function(x) summary(trees.su.1992.2020[[x]]))
 ```
 
 
@@ -357,13 +424,15 @@ trees.fa.1992.2020 <- tree_by_season_rpart(3, 1992, 2020, 7, data)
 ```
 
 ```{r}
-lapply(1:4, function(x) return(fancyRpartPlot(trees.fa.1992.2020[[x]]$finalModel,
-                                               main = paste(as.character(x)) )))
+lapply(1:4, function(x) fancyRpartPlot(trees.fa.1992.2020[[x]],
+                                               main = paste(as.character(x)) ))
 ```
 
 ```{r}
-lapply(1:4, function(x) return(plot(trees.fa.1992.2020[[x]],
-                                              main = paste(as.character(x)) )))
+# Print out summary plots and stats
+lapply(1:4, function(x) rsq.rpart(trees.fa.1992.2020[[x]]))
+lapply(1:4, function(x) plotcp(trees.fa.1992.2020[[x]]))
+lapply(1:4, function(x) summary(trees.fa.1992.2020[[x]]))
 ```
 
 #### Winter
@@ -374,16 +443,18 @@ trees.wi.1992.2020 <- tree_by_season_rpart(4, 1992, 2020, 7, data)
 ```
 
 ```{r}
-lapply(1:4, function(x) return(fancyRpartPlot(trees.wi.1992.2020[[x]]$finalModel,
-                                               main = paste(as.character(x)) )))
+lapply(1:4, function(x) fancyRpartPlot(trees.wi.1992.2020[[x]],
+                                               main = paste(as.character(x)) ))
 ```
 
 ```{r}
-lapply(1:4, function(x) return(plot(trees.wi.1992.2020[[x]],
-                                              main = paste(as.character(x)) )))
+# Print out summary plots and stats
+lapply(1:4, function(x) rsq.rpart(trees.wi.1992.2020[[x]]))
+lapply(1:4, function(x) plotcp(trees.wi.1992.2020[[x]]))
+lapply(1:4, function(x) summary(trees.wi.1992.2020[[x]]))
 ```
 
-### Filtering by a FIELDNUM
+## Filtering by a FIELDNUM 
 water4 <- data %>% filter(FLDNUM == "1")
 
 ```{r}
