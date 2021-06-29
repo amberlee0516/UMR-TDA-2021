@@ -450,28 +450,63 @@ However, notice that there are actually quite a few negative values in the fixed
 We are going to be setting all of the negative values to the minimums. We can get a list of the minimum values and then mutate each column based of the associated minimum value.
 
 ```{r}
-# Get a list of minimum values
-neg_cols <- water_var[c(1, 2, 3, 8, 9, 10)]
-minimums <- c(0.024, .001, .1, 0.02, 0.0, 0.00962 )
-
 tmp <- qfwater20 %>%
   mutate(across(water_var[water_var != "TEMP"], ~ ifelse(. < 0, NA, .)))
 
 
+# Get the positive minimum value we will you for each of negative values
+#get_minimum <- function(variable, data) {
+#  temp <- data %>% filter(variable > 0)
+#  min(temp$variable, na.rm = TRUE)
+#  return(temp)
+  
+#}
+
+
+# Columns that we need to replace negatives for - for some reason c("name"s) is not working
+neg_cols <- water_var[c(1, 2, 3, 8, 9, 10)]
+
+# We are finding the positive minimum for all of the columns except for WDP
+minimums <- c(0.024, .001, .1, 0.02, 0.0, 0.00962 )
+
 ### Just TP
-sum(qfwater20$TP < 0, na.rm = TRUE) 
+sum(qfwater20$TN < 0, na.rm = TRUE) 
 qfwater20$TP
+
+temp <- qfwater20 %>% filter(TEMP > 0 )
+min(temp$TEMP, na.rm =TRUE)
+
 # Set na TP values to detection limit - .001
-tmp2 <- mutate( qfwater20, TP = ifelse(TP < 0, .001, TP))
-sum(tmp2$TP < 0, na.rm = TRUE) 
+tmp2 <- mutate( qfwater20, TP = ifelse(TP < 0, .002, TP))
+tmp2 <- mutate( tmp2, TN = ifelse(TN < 0, .041, TN))
+tmp2 <- mutate( tmp2, SS = ifelse(SS < 0, .02, SS))
+tmp2 <- mutate( tmp2, WDP = ifelse(WDP < 0, 0, WDP))
+tmp2 <- mutate( tmp2, CHLcal = ifelse(CHLcal < 0, 0.0183, CHLcal))
+tmp2 <- mutate( tmp2, TEMP = ifelse(TEMP < 0, 0.05, CHLcal))
+
+
+sum(tmp2$TEMP < 0, na.rm = TRUE) 
 ### 
+
+
+
+
+
+
+
+
+
+
 
 # Function that will replace any negative values in a column with a specified value
 replace_negatives <- function(neg_col, replace_val, data) {
   data <- mutate( data, neg_col = ifelse(TP < 0, replace_val, neg_col))
 }
 
-water <- lapply(1: length(neg_cols), replace_negatives, neg_cols, minimums, qfwater20)
+# NEITHER OF THESE WORK
+minimums <- lapply(neg_cols, get_minimum, qfwater20) 
+
+water <- lapply(neg_cols, replace_negatives, minimums, qfwater20[neg_cols])
 
 
 
