@@ -15,7 +15,6 @@ library(lubridate)
 library(stringr)
 library(caret)
 library(rattle)
-library(partykit)
 library(rpart)
 ```
 # Predicting TN values with CART regression trees
@@ -26,8 +25,8 @@ The data set that we are uploading has already been filtered for bad QF codes, n
 
 
 ```{r}
-setwd("/Users/alainastockdill/UMR-TDA-2021/DataCleaning/CART interpolation")
-data <- read.csv(file = "../../LTRM data/water_data_qfneg.csv")
+setwd("/Users/alainastockdill/UMR-TDA-2021/InterpolationCode/CART interpolation")
+water <- read.csv(file = "../../LTRM data/water_data_qfneg.csv")
 
 # Sets the maximum number of nested expressions to be evaluated
 options(expressions = 5e5)
@@ -36,19 +35,22 @@ options(expressions = 5e5)
 
 ```{r}
 # Add in the date, year, and season
-data <- data %>% 
+water <- water %>% 
   mutate(nice_date = mdy(DATE),
          year = year(nice_date),
          season = quarter(nice_date, fiscal_start = 3)) %>%
   select(-SHEETBAR, -nice_date, -DATE, -LOCATCD)
 
 # Make the FLDNUM and STRATUM categorical variables
-data$FLDNUM <- as.character(data$FLDNUM)
-data$STRATUM <- as.character(data$STRATUM)
-data$season <- as.character(data$season)
+water$FLDNUM <- as.character(water$FLDNUM)
+water$STRATUM <- as.character(water$STRATUM)
+water$season <- as.character(water$season)
 
 # Set pred_col to the columns that we want to use as predictors
-pred_col <- names(data)
+predictor_vars <- c("TP", "TN", "TURB", "COND", "VEL", "WDP", "season", "STRATUM", "FLDNUM", "CHLcal", "SS", "TEMP")
+
+data <- water[predictor_vars]
+
 ```
 
 Here are several different data sets that will serve when necessary
@@ -99,7 +101,7 @@ If a value is missing, a surrogate value will be used.
 ### RPART MODEL ###
 # Runs on the entire data set - even with na values in all columns
 set.seed(4321)
-tr.TN_rpart <- rpart(TN ~ pred_col,
+tr.TN_rpart <- rpart(TN ~ .,
                     data = (data %>% sample_frac(0.5)),
                     method = "anova",
                     control = (maxdepth = 20))
@@ -154,7 +156,7 @@ Create a tree model for all years using the data set that has empty TN values re
 #### Run using comp_tn_data: a complete TN row
 
 ```{r}
-sample_size = 0.80 * nrow()
+sample_size = 0.80 * nrow(comp_TN_data)
 set.seed(571)
 train_indices <- sample(seq_len(nrow(comp_TN_data)), size = sample_size)
 
@@ -162,7 +164,7 @@ data_train <- comp_TN_data[train_indices, ]
 data_test <- comp_TN_data[-train_indices, ]
 
 set.seed(4321)
-tr.TN_rpart1 <- rpart(TN ~ pred_col,
+tr.TN_rpart1 <- rpart(TN ~ .,
                     data = data_train,
                     method = "anova",
                     control = (maxdepth = 20))
@@ -177,27 +179,32 @@ data_test$PREDICTED <- predict(tr.TN_rpart, data_test)
 ggplot(data_train, mapping = aes(TN, PREDICTED)) +
   geom_point(alpha = 0.1)
 
+train_lm <- lm(PREDICTED ~ TN, data = data_train)
+
 ggplot(data_test, mapping = aes(TN, PREDICTED)) +
   geom_point(alpha = 0.1)
 
+test_lm <- lm(PREDICTED ~ TN, data = data_test)
+
 # Get the RMSE and correlation coefficient for the test data
-mae(data_test$TN, data_test$PREDICTED)
+MAE(data_test$TN, data_test$PREDICTED)
 RMSE(data_test$TN, data_test$PREDICTED)
-mse(data_test$TN, data_test$PREDICTED)
+mean((data_test$TN - data_test$PREDICTED)^2)
 cor(data_test$TN, data_test$PREDICTED)
+summary(test_lm)$r.squared
 ```
 
 #### Run with the original TN column in the data set
 ```{r}
-sample_size = 0.80 * nrow()
+sample_size = 0.80 * nrow(data)
 set.seed(7362)
 train_indices <- sample(seq_len(nrow(data)), size = sample_size)
 
-data_train <- data_train[train_indices, ]
+data_train <- data[train_indices, ]
 data_test <- data[-train_indices, ]
 
 set.seed(2847)
-tr.TN_rpart2 <- rpart(TN ~ pred_col,
+tr.TN_rpart2 <- rpart(TN ~ .,
                     data = data_train,
                     method = "anova",
                     control = (maxdepth = 20))
@@ -212,14 +219,18 @@ data_test$PREDICTED <- predict(tr.TN_rpart, data_test)
 ggplot(data_train, mapping = aes(TN, PREDICTED)) +
   geom_point(alpha = 0.1)
 
+train_lm <- lm(PREDICTED ~ TN, data = data_train)
+
 ggplot(data_test, mapping = aes(TN, PREDICTED)) +
   geom_point(alpha = 0.1)
 
+test_lm <- lm(PREDICTED ~ TN, data = data_test)
+
 # Get the RMSE and correlation coefficient for the test data
-mae(data_test$TN, data_test$PREDICTED)
-RMSE(data_test$TN, data_test$PREDICTED)
-mse(data_test$TN, data_test$PREDICTED)
-cor(data_test$TN, data_test$PREDICTED)
+MAE(data_test$TN, data_test$PREDICTED, na.rm = TRUE)
+RMSE(data_test$TN, data_test$PREDICTED, na.rm = TRUE)
+mean((data_test$TN - data_test$PREDICTED)^2, na.rm = TRUE)
+summary(test_lm)$r.squared
 ```
 
 
@@ -296,7 +307,7 @@ tree_by_season <- function(season, min_year, max_year, year_interval, water_data
 ```{r}
 # Functions for splitting into years and seasons - using rplot: can have nas
 # Split by year and season
-make_year_tuples <- functon(index, year_partition) {
+make_year_tuples <- function(index, year_partition) {
   return(c(year_partition[index], year_partition[index + 1]))
 }
 
@@ -323,12 +334,14 @@ tree_by_season_rpart<- function(season, min_year, max_year, year_interval, water
   
   water_data <- water_data %>% filter(season == season)
   
-  tree_models <- lapply(year_tuples, tree_by_years_rpart, water_data)
+  #tree_models <- lapply(year_tuples, tree_by_years_rpart, water_data)
   
-  return(tree_models)
-
+  return(water_data)
 }
 
+```
+
+```{r}
 # Test the accuracy of the model with a train and test set
 train_test_rpart <- function(model, data, pred_col) {
   sample_size = 0.80 * nrow()
@@ -363,6 +376,7 @@ train_test_rpart <- function(model, data, pred_col) {
   mse(data_test$TN, data_test$PREDICTED)
   cor(data_test$TN, data_test$PREDICTED)
 }
+
 ```
 
 
@@ -370,6 +384,14 @@ train_test_rpart <- function(model, data, pred_col) {
 ```{r} 
 #Why is this in here?
 #comp_TN_data <- subset(comp_TN_data, select = -season)
+
+partition <- seq(2000, 2020, 5)
+tuples <- lapply(1: length(partition) -1, make_year_tuples, partition)
+
+tuples[1]
+tuples[2]
+tuples[3]
+
 ```
 
 #### Spring
@@ -455,11 +477,11 @@ lapply(1:4, function(x) summary(trees.wi.1992.2020[[x]]))
 ```
 
 ## Filtering by a FIELDNUM 
-water4 <- data %>% filter(FLDNUM == "1")
 
 ```{r}
 ### RPART MODEL ###
 # Runs on the entire data set - even with na values in all columns
+water4 <- data %>% filter(FLDNUM == "1")
 set.seed(4321)
 water4_rpart <- rpart(TN ~.,
                     data = (water4 %>% sample_frac(0.7)),
@@ -492,13 +514,18 @@ data_test$PREDICTED <- predict(water4_rpart2, data_test)
 ggplot(data_train, mapping = aes(TN, PREDICTED)) +
   geom_point(alpha = 0.1)
 
+train_lm <- lm(PREDICTED ~ TN, data = data_train)
+
 ggplot(data_test, mapping = aes(TN, PREDICTED)) +
   geom_point(alpha = 0.1)
 
-# Get the RMSE and correlation coefficient for the test data
-RMSE(data_train$TN, data_train$PREDICTED, na.rm = TRUE)
+test_lm <- lm(PREDICTED ~ TN, data = data_test)
 
-cor(data_test$TN, data_test$PREDICTED, use = "complete.obs")
+# Get the RMSE and correlation coefficient for the test data
+MAE(data_test$TN, data_test$PREDICTED, na.rm = TRUE)
+RMSE(data_test$TN, data_test$PREDICTED, na.rm = TRUE)
+mean((data_test$TN - data_test$PREDICTED)^2, na.rm = TRUE)
+summary(test_lm)$r.squared
 
 ```
 
