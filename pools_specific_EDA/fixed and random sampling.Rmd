@@ -1,0 +1,27 @@
+---
+title: "fixed vs random sampling"
+author: "Amber Lee"
+date: "6/25/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Summary
+
+The LTRM water quality data is created from fixed and random sampling sites. The fixed sampling sites are different because
+
+a) They are fixed... so the same location is sampled multiple times throughout the year
+
+b) The fixed sampling sites are not in the main channel.
+
+Using the data from the fixed sampling sites may not even be relevant to our TDA analysis. Being able to identify the fixed site samples is thus important.
+
+However, identifying which samples are from fixed sites is not straightforward. Location code `LOCATCD` is not readily decipherable because there are formats that 
+
+```{r}
+
+```
+
