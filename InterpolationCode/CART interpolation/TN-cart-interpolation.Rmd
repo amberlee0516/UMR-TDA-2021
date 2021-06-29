@@ -187,12 +187,18 @@ ggplot(data_test, mapping = aes(TN, PREDICTED)) +
 test_lm <- lm(PREDICTED ~ TN, data = data_test)
 
 # Get the RMSE and correlation coefficient for the test data
+print("Mean absolute error: ")
 MAE(data_test$TN, data_test$PREDICTED)
+print("Root mean square error: ")
 RMSE(data_test$TN, data_test$PREDICTED)
+print("Mean square error: ")
 mean((data_test$TN - data_test$PREDICTED)^2)
-cor(data_test$TN, data_test$PREDICTED)
+#cor(data_test$TN, data_test$PREDICTED)
+print("R-square: ")
 summary(test_lm)$r.squared
+unique(water$FLDNUM)
 ```
+
 
 #### Run with the original TN column in the data set
 ```{r}
@@ -274,7 +280,7 @@ make_year_tuples <- function(index, year_partition) {
 
 # Creates trees by groups of years 
 tree_by_years <- function(year_tuple, water_data) {
-  water_data <- water_data %>% filter(year >= year_tuple[1] &
+  water_data <- water_data %>% dplyr::filter(year >= year_tuple[1] &
                                       year <= year_tuple[2])
   
   fit_control <- caret::trainControl(method = "cv")
@@ -294,7 +300,7 @@ tree_by_season <- function(season, min_year, max_year, year_interval, water_data
   
   year_tuples <- lapply(1: (length(year_partition) - 1), make_year_tuples, year_partition)
   
-  water_data <- water_data %>% filter(season == season)
+  water_data <- water_data %>% dplyr::filter(season == season)
   
   tree_models <- lapply(year_tuples, tree_by_years, water_data)
   
@@ -313,7 +319,7 @@ make_year_tuples <- function(index, year_partition) {
 
 # Creates trees by groups of years 
 tree_by_years_rpart <- function(year_tuple, water_data) {
-  water_data <- water_data %>% filter(year >= year_tuple[1] &
+  water_data <- water_data %>% dplyr::filter(year >= year_tuple[1] &
                                       year <= year_tuple[2])
   
   tr.TN_rpart <- rpart(TN ~.,
@@ -332,11 +338,11 @@ tree_by_season_rpart<- function(season, min_year, max_year, year_interval, water
   
   year_tuples <- lapply(1: (length(year_partition) - 1), make_year_tuples, year_partition)
   
-  water_data <- water_data %>% filter(season == season)
+  water_data <- water_data %>% dplyr::filter(season == season)
   
-  #tree_models <- lapply(year_tuples, tree_by_years_rpart, water_data)
+  tree_models <- lapply(year_tuples, tree_by_years_rpart, water_data)
   
-  return(water_data)
+  return(tree_models)
 }
 
 ```
@@ -527,7 +533,11 @@ RMSE(data_test$TN, data_test$PREDICTED, na.rm = TRUE)
 mean((data_test$TN - data_test$PREDICTED)^2, na.rm = TRUE)
 summary(test_lm)$r.squared
 
+
+unique(water$TEMP)
+
 ```
+
 
 
 
