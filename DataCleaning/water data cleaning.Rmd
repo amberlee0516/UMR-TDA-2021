@@ -376,17 +376,53 @@ c(unlist(lapply(qf_A0, qfcodes_check, qfwater20, c("A", "0"))),
 
 # 4. Replace negative values with NA
 
-In each of the continuous variable columns, there are several negative values. This occurs for the a couple different reasons. For the nutrient samples, such as nitrogen and phosphorus, the sample is below the detection limit and is small enough that a value cannot be accurately recorded. A negative temperature is du
+In each of the continuous variable columns, there are several negative values. This occurs for the a couple different reasons. For the nutrient samples, such as nitrogen and phosphorus, the sample is below the detection limit and is small enough that a value cannot be accurately recorded. For the temperature, the negative values are due to errors in the probe at low temperatures. [MORE ABOUT THE NEGATIVES?]
 
+Originally it was thought that these values should be replaced with NA, however doing so indicates that these values need to be interpolated. This a problem because we will be replacing lower sample values with likely higher predictions. Instead, we will replace these negative values in the following manner: 
 
-We are going to be setting all of the negative values to the minimums. We can get a list of the minimum values and then mutate each column based of the associated minimum value.
+* Negative WDP values will be replaced with 0 
+* Negative TP, TN, SS, CHLcal, and TEMP values will be be replaced with the current minimum record for that variable. 
 
+Since not all values have a detection threshold, we will be using the minima of each of the variables. This is to give us, in a sense, the worst case scenario for each values. Since we know that it is unlikely that these values are 0, replacing them with the smallest recorded value will still account for the fact that these values are comparatively much smaller than the rest of the data. [EXPLAIN WHY WE WILL USE THE MINIMUM]
+
+The code works as follows:
+
+1. Determine what the minimum values are for TP, TN, SS, WDP, TEMP, and CHLcal
+
+2. For each TP, TN, SS, CHLcal, and TEMP column...
+
+  a. Replace each negative with the columns minimum value. 
+     If it is a positive value or NA, leave as is.
+     
+  
 ```{r}
-tmp <- qfwater20 %>%
-  mutate(across(water_var[water_var != "TEMP"], ~ ifelse(. < 0, NA, .)))
+
+### This is what was used for the most current data set - dont be sad, its so ugly 
+
+get_min <- qfwater20 %>% filter(TEMP > 0 ) # Get the minimum positive value
+min(get_min$TEMP, na.rm =TRUE)
+
+# Set na TP values to detection limit
+tmp <- mutate( qfwater20, TP = ifelse(TP < 0, .002, TP))
+tmp <- mutate( tmp, TN = ifelse(TN < 0, .024, TN))
+tmp <- mutate( tmp, SS = ifelse(SS < 0, .02, SS))
+tmp <- mutate( tmp, WDP = ifelse(WDP < 0, 0, WDP))
+tmp <- mutate( tmp, CHLcal = ifelse(CHLcal < 0, 0.0183, CHLcal))
+tmp <- mutate( tmp, TEMP = ifelse(TEMP < 0, 0.1, TEMP))
+
+#sum(tmp$WDP < 0, na.rm = TRUE) # Checks to make sure there are no more negs
+#check_negatives <- tmp %>% filter(TEMP == 0.1) # check to see how many min vals there are
+#nrow(check_negatives)
+
+
+### My idea for the functions !!! 
+
+# Columns that we need to replace negatives for - for some reason c("name"s) is not working
+neg_cols <- water_var[c(1, 2, 3, 8, 9, 10)]
 
 
 # Get the positive minimum value we will you for each of negative values
+
 #get_minimum <- function(variable, data) {
 #  temp <- data %>% filter(variable > 0)
 #  min(temp$variable, na.rm = TRUE)
@@ -394,56 +430,16 @@ tmp <- qfwater20 %>%
   
 #}
 
-
-# Columns that we need to replace negatives for - for some reason c("name"s) is not working
-neg_cols <- water_var[c(1, 2, 3, 8, 9, 10)]
-
-# We are finding the positive minimum for all of the columns except for WDP
-minimums <- c(0.024, .001, .1, 0.02, 0.0, 0.00962 )
-
-### Just TP
-sum(qfwater20$TN < 0, na.rm = TRUE) 
-qfwater20$TP
-
-temp <- qfwater20 %>% filter(TEMP > 0 )
-min(temp$TEMP, na.rm =TRUE)
-
-
-
-get_negatives <- qfwater20 %>% filter(SS <  0)
-nrow(get_negatives)
-
-
-
-# Set na TP values to detection limit - .001
-tmp2 <- mutate( qfwater20, TP = ifelse(TP < 0, .002, TP))
-tmp2 <- mutate( tmp2, TN = ifelse(TN < 0, .024, TN))
-tmp2 <- mutate( tmp2, SS = ifelse(SS < 0, .02, SS))
-tmp2 <- mutate( tmp2, WDP = ifelse(WDP < 0, 0, WDP))
-tmp2 <- mutate( tmp2, CHLcal = ifelse(CHLcal < 0, 0.0183, CHLcal))
-tmp2 <- mutate( tmp2, TEMP = ifelse(TEMP < 0, 0.1, TEMP))
-
-
-sum(tmp2$WDP < 0, na.rm = TRUE) 
-### 
-
-check_negatives <- tmp2 %>% filter(TEMP == 0.1)
-nrow(check_negatives)
-
-
-
-
-
 # Function that will replace any negative values in a column with a specified value
-replace_negatives <- function(neg_col, replace_val, data) {
-  data <- mutate( data, neg_col = ifelse(TP < 0, replace_val, neg_col))
-}
 
-# NEITHER OF THESE WORK
+#replace_negatives <- function(neg_col, replace_val, data) {
+#  data <- mutate( data, neg_col = ifelse(TP < 0, replace_val, neg_col))
+#}
+
+
+# these don't work :(
 minimums <- lapply(neg_cols, get_minimum, qfwater20) 
-
 water <- lapply(neg_cols, replace_negatives, minimums, qfwater20[neg_cols])
-
 
 
 
@@ -481,6 +477,9 @@ It is important that our data sets consists only of unique barcodes because it r
 In each instance of multiple rows with the same SHEETBAR, there will be some combinations of sample and NA values for each continuous variable. Since our goal is combine it to combine the rows with the same SHEETBAR, we will find the average for each column, excluding the DATE, STRATUM, LOCATCD, LATITUDE and LONGITUDE columns.
 
 The data set at this point should have already been filtered for the surface samples and bad QF codes.
+
+The code works as follows:
+
 
 ```{r}
 
@@ -535,12 +534,12 @@ row_collapse <- function(data, water_var, identifier_var) {
 ```{r}
 # Just continuous vars and identifiers (remove QF columns)
 
-tmp2 <- row_collapse(tmp2[c(water_var, identifier_var)], 
+tmp <- row_collapse(tmp[c(water_var, identifier_var)], 
                           water_var, identifier_var)
 
 ```
 
 
 ```{r}
-write.csv(tmp2, "../LTRM data/water_data_qfneg.csv", row.names = FALSE)
+write.csv(tmp, "../LTRM data/water_data_qfneg.csv", row.names = FALSE)
 ```
