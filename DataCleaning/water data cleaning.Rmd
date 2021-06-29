@@ -373,7 +373,106 @@ c(unlist(lapply(qf_A0, qfcodes_check, qfwater20, c("A", "0"))),
 
 ```
 
-# 4. Removing duplicates (continued): combine the rows that have the same SHEETBAR code
+
+# 4. Replace negative values with NA
+
+In each of the continuous variable columns, there are several negative values. This occurs for the a couple different reasons. For the nutrient samples, such as nitrogen and phosphorus, the sample is below the detection limit and is small enough that a value cannot be accurately recorded. A negative temperature is du
+
+
+We are going to be setting all of the negative values to the minimums. We can get a list of the minimum values and then mutate each column based of the associated minimum value.
+
+```{r}
+tmp <- qfwater20 %>%
+  mutate(across(water_var[water_var != "TEMP"], ~ ifelse(. < 0, NA, .)))
+
+
+# Get the positive minimum value we will you for each of negative values
+#get_minimum <- function(variable, data) {
+#  temp <- data %>% filter(variable > 0)
+#  min(temp$variable, na.rm = TRUE)
+#  return(temp)
+  
+#}
+
+
+# Columns that we need to replace negatives for - for some reason c("name"s) is not working
+neg_cols <- water_var[c(1, 2, 3, 8, 9, 10)]
+
+# We are finding the positive minimum for all of the columns except for WDP
+minimums <- c(0.024, .001, .1, 0.02, 0.0, 0.00962 )
+
+### Just TP
+sum(qfwater20$TN < 0, na.rm = TRUE) 
+qfwater20$TP
+
+temp <- qfwater20 %>% filter(TEMP > 0 )
+min(temp$TEMP, na.rm =TRUE)
+
+
+
+get_negatives <- qfwater20 %>% filter(SS <  0)
+nrow(get_negatives)
+
+
+
+# Set na TP values to detection limit - .001
+tmp2 <- mutate( qfwater20, TP = ifelse(TP < 0, .002, TP))
+tmp2 <- mutate( tmp2, TN = ifelse(TN < 0, .024, TN))
+tmp2 <- mutate( tmp2, SS = ifelse(SS < 0, .02, SS))
+tmp2 <- mutate( tmp2, WDP = ifelse(WDP < 0, 0, WDP))
+tmp2 <- mutate( tmp2, CHLcal = ifelse(CHLcal < 0, 0.0183, CHLcal))
+tmp2 <- mutate( tmp2, TEMP = ifelse(TEMP < 0, 0.1, TEMP))
+
+
+sum(tmp2$WDP < 0, na.rm = TRUE) 
+### 
+
+check_negatives <- tmp2 %>% filter(TEMP == 0.1)
+nrow(check_negatives)
+
+
+
+
+
+# Function that will replace any negative values in a column with a specified value
+replace_negatives <- function(neg_col, replace_val, data) {
+  data <- mutate( data, neg_col = ifelse(TP < 0, replace_val, neg_col))
+}
+
+# NEITHER OF THESE WORK
+minimums <- lapply(neg_cols, get_minimum, qfwater20) 
+
+water <- lapply(neg_cols, replace_negatives, minimums, qfwater20[neg_cols])
+
+
+
+
+
+
+#lapply(water_var[!(water_var %in% c("WDP", "CHLcal"))], function(var, df) 
+#  df %>%
+#    select(all_of(c(var, paste(var, "QF", sep = "")))) %>%
+#    filter(!!sym(var) < 0) %>%
+#    mutate(var = paste(var)) %>%
+#    ggplot(aes(x = !!sym(var))) + 
+#             geom_histogram(aes(fill = !!sym(paste(var, "QF", sep = ""))), 
+#                            bins = 10), water20)
+
+# lapply(water_var, function(var, df) 
+#   df %>%
+#     select(var) %>%
+#     filter(!!sym(var) < 0) %>%
+#     mutate(var = paste(var)), qfwater20)
+# 
+# 
+# lapply(water_var, function(var, df)
+#   df %>%
+#     select(var) %>%
+#     filter(!!sym(var) < 0) %>%
+#     mutate(var = paste(var)), tmp) # this checks that we successfully set negative values to 0
+```
+
+# 5. Removing duplicates (continued): combine the rows that have the same SHEETBAR code
 
 The purpose of this next component is to clean the current data set and remove the remaining rows with non-unique barcodes (SHEETBAR). This will be done by combining or "collapsing" the rows with he same barcode. While filtering for the samples taken at the surface of the river (CALCZCD == "SF") accounted for a majority of the rows with identical barcodes, there are still several rows that need to be removed.
 
@@ -436,107 +535,12 @@ row_collapse <- function(data, water_var, identifier_var) {
 ```{r}
 # Just continuous vars and identifiers (remove QF columns)
 
-qfwater20 <- row_collapse(qfwater20[c(water_var, identifier_var)], 
+tmp2 <- row_collapse(tmp2[c(water_var, identifier_var)], 
                           water_var, identifier_var)
 
 ```
 
-# 5. Replace negative values with NA
-
-Due to bad readings when sampling, there are negative values for some of the continuous variables. Since we do not want to throw away data that is mostly usable, we will replace the negative value and instead interpolate the value.
-
-However, notice that there are actually quite a few negative values in the fixed-site, surface-level samples.
-
-We are going to be setting all of the negative values to the minimums. We can get a list of the minimum values and then mutate each column based of the associated minimum value.
 
 ```{r}
-tmp <- qfwater20 %>%
-  mutate(across(water_var[water_var != "TEMP"], ~ ifelse(. < 0, NA, .)))
-
-
-# Get the positive minimum value we will you for each of negative values
-#get_minimum <- function(variable, data) {
-#  temp <- data %>% filter(variable > 0)
-#  min(temp$variable, na.rm = TRUE)
-#  return(temp)
-  
-#}
-
-
-# Columns that we need to replace negatives for - for some reason c("name"s) is not working
-neg_cols <- water_var[c(1, 2, 3, 8, 9, 10)]
-
-# We are finding the positive minimum for all of the columns except for WDP
-minimums <- c(0.024, .001, .1, 0.02, 0.0, 0.00962 )
-
-### Just TP
-sum(qfwater20$TN < 0, na.rm = TRUE) 
-qfwater20$TP
-
-temp <- qfwater20 %>% filter(TEMP > 0 )
-min(temp$TEMP, na.rm =TRUE)
-
-# Set na TP values to detection limit - .001
-tmp2 <- mutate( qfwater20, TP = ifelse(TP < 0, .002, TP))
-tmp2 <- mutate( tmp2, TN = ifelse(TN < 0, .041, TN))
-tmp2 <- mutate( tmp2, SS = ifelse(SS < 0, .02, SS))
-tmp2 <- mutate( tmp2, WDP = ifelse(WDP < 0, 0, WDP))
-tmp2 <- mutate( tmp2, CHLcal = ifelse(CHLcal < 0, 0.0183, CHLcal))
-tmp2 <- mutate( tmp2, TEMP = ifelse(TEMP < 0, 0.05, CHLcal))
-
-
-sum(tmp2$TEMP < 0, na.rm = TRUE) 
-### 
-
-
-
-
-
-
-
-
-
-
-
-# Function that will replace any negative values in a column with a specified value
-replace_negatives <- function(neg_col, replace_val, data) {
-  data <- mutate( data, neg_col = ifelse(TP < 0, replace_val, neg_col))
-}
-
-# NEITHER OF THESE WORK
-minimums <- lapply(neg_cols, get_minimum, qfwater20) 
-
-water <- lapply(neg_cols, replace_negatives, minimums, qfwater20[neg_cols])
-
-
-
-
-
-
-#lapply(water_var[!(water_var %in% c("WDP", "CHLcal"))], function(var, df) 
-#  df %>%
-#    select(all_of(c(var, paste(var, "QF", sep = "")))) %>%
-#    filter(!!sym(var) < 0) %>%
-#    mutate(var = paste(var)) %>%
-#    ggplot(aes(x = !!sym(var))) + 
-#             geom_histogram(aes(fill = !!sym(paste(var, "QF", sep = ""))), 
-#                            bins = 10), water20)
-
-# lapply(water_var, function(var, df) 
-#   df %>%
-#     select(var) %>%
-#     filter(!!sym(var) < 0) %>%
-#     mutate(var = paste(var)), qfwater20)
-# 
-# 
-# lapply(water_var, function(var, df)
-#   df %>%
-#     select(var) %>%
-#     filter(!!sym(var) < 0) %>%
-#     mutate(var = paste(var)), tmp) # this checks that we successfully set negative values to 0
-```
-
-
-```{r}
-write.csv(tmp, "../LTRM data/water_data_qfneg.csv", row.names = FALSE)
+write.csv(tmp2, "../LTRM data/water_data_qfneg.csv", row.names = FALSE)
 ```
