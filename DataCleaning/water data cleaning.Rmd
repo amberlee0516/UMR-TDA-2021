@@ -213,8 +213,11 @@ table(water20$SITETYPE)
 
 # Filter for surface level observations at fixed sites
 
-This eliminates most of the duplicates. We will return to the duplicates discussion later. We also will not be using any of the fixed sites for interpolation or TDA. We will remove these rows with the `SITETYPE` value '2' because... TODO.
+This eliminates most of the duplicates. We will return to the duplicates discussion later. We also will not be using any of the fixed sites for interpolation or TDA. The fixed sites are indicated with 'SITETYPE' of value '2'. 
 
+These samples are taken at tributaries along the UMR and while the water from the tributaries contribute to the water quality of the Mississippi river, the recorded values may not accurately describe the water quality of the river. For that reason, we do not want to include them in the TDA analysis of the river quality. 
+
+We also do not want to use the sample to interpolate the missing values for the other sites. This is due to the fact that the nutrients and the sediments in the tributaries is more highly concentrated than it is once it reaches the Mississippi River. Furthermore, it is not clear how the water from the tributaries will disperse after it reaches the main river and should not be used to predict other sample site values.
 
 ```{r}
 
@@ -480,6 +483,22 @@ The data set at this point should have already been filtered for the surface sam
 
 The code works as follows:
 
+1. Count how many times each 'SHEETBAR' occurs throughout in the data set. Since our final data set should only have one row per 'SHEETBAR', or in other words, one row per sample, the number of rows in the 'SHEETBAR' counts should be the same number of rows in the final data set
+
+2. Filter for the sheetbars that occur more than once
+
+  a. Set aside the rows with the sheetbar that only occur once in the final dataframe
+  b. Get the columns of the sheetbars that occur more than once
+  
+3. Separate the continuous variables and the sample identifers from the duplicate rows 
+
+4. Find the average of all continuous variables - this is done so that the average will only be found on non-na values
+
+5. Set the NaN value types to the NA type and round the values so there are only 2 decimal places. These adjustements needed to made after taking using the aggregate function. The NA type became an NaN for a missing numeric type and the aggregate function used more decimal places than necessary
+
+6. Append the identifiers back to the duplicate sheetbar rows
+
+7. Append the collapsed rows to the final data set
 
 ```{r}
 
