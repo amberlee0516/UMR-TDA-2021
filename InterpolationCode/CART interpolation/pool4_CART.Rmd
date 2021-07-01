@@ -32,7 +32,11 @@ The data set that we are using has been cleaned to:
   5. Filtered for random samples (excluded fixed sites in river tributaries)
   6. Combined rows that had the sample SHEETBAR values
 
+```{r}
+setwd("/Users/alainastockdill/UMR-TDA-2021/InterpolationCode/CART interpolation")
+water <- read.csv(file = "../../LTRM data/water_data_qfneg.csv")
 
+```
 
 
 
