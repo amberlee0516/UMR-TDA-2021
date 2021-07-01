@@ -20,6 +20,7 @@ from sklearn.model_selection import cross_val_score,train_test_split
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import RobustScaler,PolynomialFeatures
 import sklearn.metrics
+pd.set_option('display.max_columns', None)
 
 # useful functions and classes
 
@@ -44,28 +45,18 @@ def getdist(S1,S2):
     dist = distance.distance(coords_1, coords_2).km
     return dist
 
-# filters out data if a point is missing in one of the colunns
-def filterblanks(columns,data,blank):
-    # if blank is true, remove rows with blanks in these columns
-    # if blank is false, remove rows with non blanks or non zeros in these columns
-    for c in columns:
-        if blank:
-            data = data[data[c].notnull()].copy()
-        else:
-            data = data[data[c].isnull()].copy()
-    return data
 
 # PRE: all locations in the dataframe are
 # unique
 def DistanceMatrix(dataframe,variable):
-    numunique = len(dataframe["LOCATCD"].unique())
-    numlocations = dataframe.shape[0]
-    try:
-        assert(numunique == numlocations), f"{numunique} unique locations but {numlocations} number of locations"
+    # numunique = len(dataframe["LOCATCD"].unique())
+    # numlocations = dataframe.shape[0]
+    # try:
+    #     assert(numunique == numlocations), f"{numunique} unique locations but {numlocations} number of locations"
     
-    except AssertionError as msg:
-        print(dataframe[dataframe["LOCATCD"].duplicated(keep=False)])
-        print(msg)
+    # except AssertionError as msg:
+    #     print(dataframe[dataframe["LOCATCD"].duplicated(keep=False)])
+    #     print(msg)
         
     # the list of location objects
     locations = []
@@ -122,7 +113,7 @@ def changeVar(DM,dataframe,variable):
     DM.index = locations
     DM.columns = locations
         
-def getclosest(numclosest,distancematrix,location,testing):
+def getclosest(numclosest,distancematrix,location):
     column = distancematrix.loc[:,location].copy()
     #print(type(distancematrix.index[0]))
     # Filter the locations that dont have the desired variable
@@ -133,14 +124,12 @@ def getclosest(numclosest,distancematrix,location,testing):
             
     # Get rid of locations that dont have the desired variable
     column.drop(doesnthavev,inplace = True)
+    # Get rid of the location we are predicting for if it exists
+    column.drop(location,inplace = True)
     #print(type(column))
     column.sort_values(inplace = True)
-    # Are we predicting for a value we already have?
-    if testing:
-        # Closest location will be the same location
-        return column.iloc[1:numclosest+1]
-    else:
-        return column.iloc[0:numclosest]
+    
+    return column.iloc[0:numclosest]
 
 # Key: Location Codes that need predicting
 # Value: List of tuples (locatcd,distance,value)
@@ -150,7 +139,7 @@ def makeDict(DM,numclosest,testing):
     for loc in DM.columns:
         if not loc.hasv or testing:
             # Get the closest locations to loc THAT ISN'T LOC
-            closest = getclosest(numclosest,DM,loc,testing)
+            closest = getclosest(numclosest,DM,loc)
             # The list of tuples that contain location id, the distance, and the value for variable
             tuples = []
             for i,dist in enumerate(closest):
@@ -168,13 +157,20 @@ def predict(tuples,numclosest = 2):
     d13 = loc3[1]
     val3 = loc3[2]
     
-    c2 = d12/(d12+d13)
-    c3 = d13/(d12+d13)
+    if d12 == d13:
+        return 0.5*d12+0.5*d13
+    elif d12 == 0:
+        return val2
+    elif d13 == 0:
+        return val3
     
-    predicted = c2*val2+c3*val3
+    else:
+        c2 = d12/(d12+d13)
+        c3 = d13/(d12+d13)
+        
+        predicted = c2*val2+c3*val3
     
-    return predicted
-
+        return predicted
 
       
 '''
@@ -188,6 +184,7 @@ numlocations - the number of locations used to predict the new value, default is
 RETURN - a dataframe with extra columns saying the predicted values of the missing_vars
 '''
 def linear_interpolate(data,missing_vars,numlocations = 2,testing = False,verbosity = 0):
+    
     print("Building a new dataframe with predicted values")
     start_time = time.time()
     # Testing for duplicated locations if needed
@@ -201,11 +198,12 @@ def linear_interpolate(data,missing_vars,numlocations = 2,testing = False,verbos
     for pool in pools:
         for year in years:
             for season in seasons:
-                print(f"Appending predicted data for {year}  {season}  FLDNUM {pool}")
+                if verbosity > 0:
+                    print(f"Appending predicted data for {year}  {season}  FLDNUM {pool}")
                 # curset is the current set of rows we are predicting for
                 curset = data[(data["YEAR"]==year) & (data["SEASON"]==season) & (data["FLDNUM"]==pool)].copy()
                 
-                if verbosity == 1:
+                if verbosity > 1:
                     print("Size of this year and season:", curset.shape)
                 
                 # Boolean to indicate if variable in Distance matrix needs updating
@@ -223,20 +221,20 @@ def linear_interpolate(data,missing_vars,numlocations = 2,testing = False,verbos
                     
     
                     if(bad):
-                        if verbosity == 1:
+                        if verbosity > 2:
                             print("Less than "+str(numlocations)+" locations have "+var+" in this set, dropping rows without "+var)
                         curset = curset[curset[var].notnull()]
                         curset[newcolumn] = curset[var]
-                        if verbosity == 1:
+                        if verbosity > 2:
                             print("Current set is now ",curset.shape)
                     else:
                         if first:
-                            if verbosity == 1:
+                            if verbosity > 2:
                                 print("Creating DM with ",var)
                             DM = DistanceMatrix(curset,var)
                             first = False
                         else:
-                            if verbosity == 1:
+                            if verbosity > 2:
                                 print("Changing to ",var)
                             changeVar(DM,curset,var)
                             
@@ -258,11 +256,18 @@ def linear_interpolate(data,missing_vars,numlocations = 2,testing = False,verbos
                                 curset.loc[index,newcolumn] = row[var]
     
                 data_prediction = data_prediction.append(curset,ignore_index=True)  
-        
-    print("Final data set size is ",data_prediction.shape)
+    
+    if verbosity > 0:
+        print("Final data set size is ",data_prediction.shape)
     print(f"Interpolating took {(time.time()-start_time)/60} minutes")
     return data_prediction
 
+# print("TESTING AT START")
+# time.sleep(10)
+# print("PRINTING AT END")
+
+# Capture current time
+global_start = time.time()
 
 # Load the cleaned data
 water_path = r"..\LTRM data\water_data_qfneg.csv"
@@ -283,30 +288,7 @@ print("\n Water data")
 print(water_data.columns)
 print(water_data.shape)
 
-print("Testing by year, by season spatial interpolation")
-for var in continuous:
-    print("Testing ",var)
-    # Filter by locations that we already have for this variable
-    water_test = water_data[water_data[var].notna()]
-    water_test_interpolated = linear_interpolate(water_test,[var],testing=True)
-    
-    # Get name of predicted column
-    newcol = "Predicted"+var
-    
-    MAE = sklearn.metrics.mean_absolute_error(water_test_interpolated[var],water_test_interpolated[newcol])
-    RMSE = sklearn.metrics.mean_squared_error(water_test_interpolated[var],water_test_interpolated[newcol],squared=False)
-    print(f"The MAE for {var} is {MAE:8f}")
-    print(f"The RMSE for {var} is {RMSE:8f}")
-    
-    # Make error column names
-    error_col = var+" error"
-    squared_error_col = var+" squared error"
-    water_test_interpolated[error_col] = round(abs(water_test_interpolated[var] - water_test_interpolated[newcol]),6)
-    water_test_interpolated[squared_error_col] = round((water_test_interpolated[var] - water_test_interpolated[newcol])**2,6)
-    print(water_test_interpolated[error_col].describe())
-    print(water_test_interpolated[squared_error_col].describe())
-    
-    
+
 print("Testing multivariate polynomial interpolation, using every other variable as a predictor besides target variable")
 print("Filtering out all rows with missing data")
 qualdata = water_data.dropna(axis=0, how='any', thresh=None, subset=continuous, inplace=False).copy()
@@ -315,11 +297,13 @@ print("Filtering out colums that we dont need")
 qualdata.drop(qualdata.columns.difference(continuous), 1, inplace=True)
 print(qualdata.shape)
 # The range of degree polynomials we will test for
-degrees = range(1,4)
+degrees = range(1,5)
 for var in continuous:
+    print("\n-----------------------------------")
     print("Building model for ",var)
     # Get our predictor variables for this model
-    predictors = continuous.copy().remove(var)
+    predictors = continuous.copy()
+    predictors.remove(var)
     
     X = np.array(qualdata[predictors])
     y = np.array(qualdata[var])
@@ -329,7 +313,7 @@ for var in continuous:
     X_standard = scaler.transform(X)
     
     # Split data into training and test sets
-    X_train, X_test, y_train, y_test = train_test_split(X_standard, y, train_size=0.8, random_state=17)
+    X_train, X_test, y_train, y_test = train_test_split(X_standard, y, train_size=0.8)
 
     
     
@@ -364,6 +348,36 @@ for var in continuous:
     test_error = np.mean((y_test - best_lm.predict(best_poly.transform(X_test))) ** 2)
     RMSE = np.sqrt(test_error)
     print(f'Degree {best_d} polynomial has RMSE = {RMSE:.5f}')
+
+
+print("\n\nTesting by year, by season spatial interpolation")
+for var in continuous:
+    print("\n-----------------------------------")
+    print("Testing ",var)
+    # Filter by locations that we already have for this variable
+    water_test = water_data[water_data[var].notna()]
+    water_test_interpolated = linear_interpolate(water_test,[var],testing=True)
+    
+    # Get name of predicted column
+    newcol = "Predicted"+var
+    
+    MAE = sklearn.metrics.mean_absolute_error(water_test_interpolated[var],water_test_interpolated[newcol])
+    RMSE = sklearn.metrics.mean_squared_error(water_test_interpolated[var],water_test_interpolated[newcol],squared=False)
+    print(f"The MAE for {var} is {MAE:8f}")
+    print(f"The RMSE for {var} is {RMSE:8f}")
+    
+    # Make error column names
+    error_col = var+" error"
+    squared_error_col = var+" squared error"
+    water_test_interpolated[error_col] = round(abs(water_test_interpolated[var] - water_test_interpolated[newcol]),6)
+    water_test_interpolated[squared_error_col] = round((water_test_interpolated[var] - water_test_interpolated[newcol])**2,6)
+    print(water_test_interpolated[error_col].describe())
+    print(water_test_interpolated[squared_error_col].describe())
+    
+
+
+print(f"Entire analysis took {(time.time()-global_start)/60} minutes")
+
     
 
 
