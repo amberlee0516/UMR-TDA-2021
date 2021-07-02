@@ -1,0 +1,43 @@
+---
+title: "pool4_CART"
+author: "Alaina Stockdill"
+data: "07/1/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+# Import libraries
+```{r}
+library(tidyverse)
+library(lubridate)
+library(stringr)
+library(caret)
+library(rattle)
+library(rpart)
+```
+
+# Predicting missing values in the LTRM data with regression trees
+
+In order to get the LTRM data ready to use TDAmapper, we need to interpolate the missing values. While many methods have been considered, including linear/polynomial/multivariate regressions and inverse distance interpolation, we will also explore interpolation using regression trees. The benefit of the CART regression tree is that they will automatically choose the most important variables in predicting the target variables and are able to handle missing data very easily. With a data set that contains a large amount of incomplete rows, it seems that this method will be helpful in getting around this issue.
+
+The data set that we are using has been cleaned to:
+
+  1. Replace values with bad QF codes with NA
+  2. Replace negative values for TP, TN, SS, TEMP, and with the minimum recorded value
+  3. Replace engative WDP values with 0
+  4. Filtered for surface samples (excluded mid and bottom samples)
+  5. Filtered for random samples (excluded fixed sites in river tributaries)
+  6. Combined rows that had the sample SHEETBAR values
+
+```{r}
+setwd("/Users/alainastockdill/UMR-TDA-2021/InterpolationCode/CART interpolation")
+water <- read.csv(file = "../../LTRM data/water_data_qfneg.csv")
+
+```
+
+
+
+

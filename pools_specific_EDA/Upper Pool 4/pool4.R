@@ -11,11 +11,11 @@ library(RColorBrewer)
 library(MASS)
 
 # Set the working directory to be the github file
-setwd("/Users/alainastockdill/UMR-TDA-2021/pools EDA/AS")
+setwd("/Users/alainastockdill/UMR-TDA-2021/pools_specific_EDA/Upper Pool 4")
 
 # Upload the data - both vegetation and water data
 veg <- read.csv(file = "../pool data/ltrm_vegsrs_data_lat_long.csv")
-water <- read.csv(file = "../pool data/ltrm_water_data_lat_long.csv")
+water <- read.csv(file = "../../LTRM data/ltrm_water_data_lat_long.csv")
 
 # Split the veg and water data into pool 4 (for water, field number 4)
 veg4 <- veg %>% 
@@ -64,8 +64,8 @@ water4U_test = water4 %>%
 # Create a map of the data points by LAT and LONG
 # includes line showing where the points differ from upper pool and lake pepin
 ggplot(data = water4U, mapping = aes(x = LATITUDE, y = LONGITUDE )) + 
-  geom_point() +
-  geom_hline(yintercept = -92.11, color = "red")
+  geom_point(aes(color = STRATUM)) +
+  geom_hline(yintercept = -92.2, color = "red")
 
 
 # Upper pool 4 coloring by STRATUM
