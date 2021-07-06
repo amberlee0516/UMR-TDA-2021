@@ -51,9 +51,9 @@ water_data <- water_data %>%
   select(-SHEETBAR, -nice_date, -DATE, -LOCATCD)
 
 # Make the FLDNUM and STRATUM categorical variables
-water_data$FLDNUM <- as.character(water$FLDNUM)
-water_data$STRATUM <- as.character(water$STRATUM)
-water_data$season <- as.character(water$season)
+water_data$FLDNUM <- as.character(water_data$FLDNUM)
+water_data$STRATUM <- as.character(water_data$STRATUM)
+water_data$season <- as.character(water_data$season)
 
 water_vars <- list("TP", "TN", "VEL") #, "TURB", "COND","WDP", "SECCHI", "CHLcal", "SS", "TEMP", "DO")
 
@@ -96,7 +96,7 @@ make_trees <-function(target_var, df) {
   
   rpart_formula <- as.formula(paste(target_var, " ~ ."))
   
-  model_controls <- rpart.control(cp = .1)
+  model_controls <- rpart.control(cp = .01)
   tr_rpart <- rpart(rpart_formula,
                       data = df,
                       method = "anova",
@@ -113,6 +113,7 @@ make_trees <-function(target_var, df) {
   
 }
 
+
 rt_evaluation  <- function(target_var, df) {
   df <- rmna_rows(target_var, df)
   
@@ -125,6 +126,8 @@ rt_evaluation  <- function(target_var, df) {
   
   pred_col_name <- paste("PREDICTED_", target_var, sep = "") # New predicted column
   data_test[ , pred_col_name] <-  predict(model, data_test)
+  
+  #printcp(model)
   
   return(data_test)
 }
@@ -186,20 +189,12 @@ get_model_stats <- function(data_test, errorBool) {
   }
 }
 
-
 ```
 
 ```{r}
 water_var_preds <- lapply(water_vars, rt_evaluation, rt_data)
-
-```
-
-```{r}
 water_var_errors <- lapply( water_var_preds, get_model_stats, TRUE )
 water_var_summary <- lapply( water_var_preds, get_model_stats, FALSE )
-
-## append the dataframes with better names
-
 ```
 
 
