@@ -1,5 +1,5 @@
 ---
-title: "ML interpolation"
+title: "CART and RF Interpolation"
 author: "Amber Lee"
 date: "6/22/2021"
 output: pdf_document
@@ -8,6 +8,10 @@ output: pdf_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, message = FALSE)
 ```
+
+# Introduction
+
+Initial implementation of regression tree, random forest, and polynomial interpolation for the 11 continuous water quality variables in our dataset. 
 
 ### Load libraries 
 ```{r}
@@ -26,23 +30,10 @@ library(broom)
 ### Read data
 
 ```{r}
-water20 <- read.csv("cleaned_data.csv", header = TRUE)
+water20 <- read.csv("../../LTRM data/water_data_qfneg.csv", header = TRUE)
 ```
 
-### Very brief data exploration
-
-Removed the QF code variable
-
-```{r}
-
-# remove the QF code variables
-water20 <- water20 %>% select(all_of(names(water20)
-                                     [str_detect(names(water20),
-                                                 "QF", negate = T)]))
-
-```
-
-Checked the missingness rate per variable
+### Scope of interpolation (exploring missingness)
 
 ```{r}
 var_missing_rate <- sapply(water20, function(x) sum(is.na(x))/length(x))
@@ -66,14 +57,17 @@ var_missing_rate %>% filter(missing_rate > 0) %>%
 
 ```
 
-Added year and season variables, changed the `FLDNUM` variable to be categorical (character).
+### Data cleaning
 
-** I filtered out observations where `TP` was greater than 2 because that represented .1% of the data **
+* Add year and season variable
+
+* Change `FLDNUM` to be categorical (character).
+
+
 
 ```{r}
 
 water20 <- water20 %>%
-  filter(TP <= 2) %>% # only 70 samples for TP > 2, outlier values screw up model
   mutate(nice_date = mdy(DATE),
          year = year(nice_date),
          quarter = quarter(nice_date, fiscal_start = 3),
@@ -90,19 +84,13 @@ water20 <- water20 %>%
 
 ```
 
-### Notes
+# Regression trees
 
-* regression (what are the steps for it?)
+### About RT
 
-* classification and regression trees (CART)
+## `TP`
 
-* neural networks
 
-* support vector machines
-
-### predicting TP with entire dataset
-
-# 80/20 
 
 http://st47s.com/Math154/Notes/class.html#r-cart-example
 
@@ -113,34 +101,39 @@ set.seed(4747)
 fullTP <- water20 %>% filter(!is.na(TP))
 
 # this gives me a total of ten 80/20 splits
-train_idx <- createDataPartition(fullTP$TP, p = .8,
-                                 list = FALSE, times = 10)
+train_idx <- createDataPartition(fullTP$TP, p = .8,list = FALSE)
 
-watertrain1 <- fullTP[train_idx[,1],]
-watertest1 <- fullTP[-train_idx[,1],]
+TPtrain1 <- fullTP[train_idx,]
+TPtest1 <- fullTP[-train_idx,]
 
 
 ```
 
 There are:
 
-* 105,000 samples in the filtered water dataset `water20`
+* 82,000 samples in the filtered water dataset `water20`
 
-* 59,000 samples in the training data `fullTP`. This is because the testing and training data both need existing `TP` values
+* 31,000 samples in the training data `fullTP`. This is because the testing and training data both need existing `TP` values
 
-* 47,000 samples in the `watertrain1`
+* 25,000 samples in the `TPtrain1`
 
-* and 11,800 samples in the `watertest1`
+* and 6,000 samples in the `TPtest1`
 
 ### using the `rpart` library
 
 https://www.statmethods.net/advstats/cart.html 
 
+https://rstudio-pubs-static.s3.amazonaws.com/27179_e64f0de316fc4f169d6ca300f18ee2aa.html
+
+
+
+Use `rpart` because there is surrogates
+
 ```{r}
 
 tr.TP <- rpart(TP ~ .,
-               data = watertrain1,
-               control = rpart.control(xval = 15,
+               data = TPtrain1,
+               control = rpart.control(xval = 10,
                                        minsplit = 100)) 
 
 printcp(tr.TP)
@@ -153,68 +146,89 @@ png("tree_TP_CV.png")
 plotcp(tr.TP)
 dev.off()
 
+fancyRpartPlot(tr.TP)
+plotcp(tr.TP)
+
+
 ```
+
 ```{r}
-summary(tr.TP)
+
+printcp(tr.TP)
+
+```
+
+### Pruning a tree with the "1 SE rule"
+
+https://stats.stackexchange.com/questions/13471/how-to-choose-the-number-of-splits-in-rpart
+
+The convention is to use the best tree (lowest cross-validate relative error) or the smallest (simplest) tree within one standard error of the best tree.
+
+https://www.mayo.edu/research/documents/rpartminipdf/doc-10027257
+
+section 6.1.2 and 6.1.3
+
+The tree with the lowest CV error has 10 splits with relative error `0.57869` and standard error `0.067620`. We prune to the smallest tree (least splits) within one standard error of the lowest CV tree's error, which is `0.57869 + 0.067620 = 0.646`. So we choose a tree with 6 splits because it has a relative error of `0.63 < 0.646`. To choose this tree, we set `cp = 0.02`. (We just have to choose a `cp` between 0.028508, which has 5 splits, and 0.018834, which has 6 splits.) 
+
+
+```{r}
 # tidy(tr.TP) TODO
 ```
 
-https://rstudio-pubs-static.s3.amazonaws.com/27179_e64f0de316fc4f169d6ca300f18ee2aa.html
-
 ```{r}
-# Prediction error rate in training data = Root node error * rel error * 100%
-# Prediction error rate in cross-validation = Root node error * xerror * 100%
-# Hence we want the cp value (with a simpler tree) that minimizes the xerror. 
+# https://rstudio-pubs-static.s3.amazonaws.com/27179_e64f0de316fc4f169d6ca300f18ee2aa.html
+# this author uses the lowest CV error to choose the cp. we don't use this message
 
-# 
+# use 1-SE rule 
 
-bestcp <- tr.TP$cptable[which.min(tr.TP$cptable[,"xerror"]),"CP"]
-bestcp
+tr.TP.prune <- prune(tr.TP, cp = 0.02)
 
-tr.TP.prune <- prune(tr.TP, cp = bestcp)
-
-data.frame(round(tr.TP.prune$cptable, digits = 3)) %>%
-  kbl(booktabs = T)
-
+fancyRpartPlot(tr.TP.prune)
 ```
 
+??
 
 https://datascience.stackexchange.com/questions/31346/caret-and-rpart-does-caret-automatically-prune-rpart-trees
 
 http://www.rdatamining.com/docs/regression-and-classification-with-r
 
-### Model evaluation
+## Evalute `TP` prediction
 
 ```{r}
 
-watertrain1$TP.PREDICT <- predict(tr.TP, data = watertrain1)
+TPtrain1$TP.PREDICT <- predict(tr.TP, data = TPtrain1)
 
-watertrain1 <- watertrain1 %>%
+TPtrain1 <- TPtrain1 %>%
   mutate(TP.SQ.ERROR = (TP - TP.PREDICT)^2)
 
 print("RSME is")
-sqrt(sum(watertrain1$TP.SQ.ERROR)/dim(watertrain1)[1])
+sqrt(sum(TPtrain1$TP.SQ.ERROR)/dim(TPtrain1)[1])
 
-watertrain1 %>% 
+TPtrain1 %>% 
   ggplot(aes(x = TP, y = TP.PREDICT)) +
   geom_point(alpha = 0.2) +
-  coord_equal() +
-  theme(aspect.ratio = 1) + xlim(0, 2) + ylim(0, 2)
+  coord_equal() 
 
 ggsave("tree_training_predictvsactual.png")
+
+# plot distribution of residuals 
+TPtrain1 %>% 
+  ggplot(aes(x = TP.SQ.ERROR)) +
+  geom_histogram(bins = 100)
 
 ```
 
 ```{r}
-watertest1$TP.PREDICT <- predict(tr.TP.prune, watertest1)
+
+TPtest1$TP.PREDICT <- predict(tr.TP.prune, TPtest1)
   
-watertest1 <- watertest1 %>%
+TPtest1 <- TPtest1 %>%
   mutate(TP.SQ.ERROR = (TP - TP.PREDICT)^2)
 
 print("RSME is")
-sqrt(sum(watertest1$TP.SQ.ERROR)/dim(watertest1)[1])
+sqrt(sum(TPtest1$TP.SQ.ERROR)/dim(TPtest1)[1])
 
-watertest1 %>% 
+TPtest1 %>% 
   ggplot(aes(x = TP, y = TP.PREDICT)) +
   geom_point(alpha = 0.2) +
   coord_equal() +
@@ -224,6 +238,80 @@ ggsave("tree_test_predictvsactual.png")
 
 ```
 
+## `TN`
+
+Predicting TN is a lot harder...
+
+```{r}
+
+fullTN <- water20 %>%
+  filter(!is.na(TN))
+
+train_idx <- createDataPartition(fullTN$TN, p = .8,list = FALSE)
+
+TNtrain1 <- fullTN[train_idx,]
+TNtest1 <- fullTN[-train_idx,]
+
+tr.TN <- rpart(TN ~ .,
+               data = TNtrain1,
+               control = rpart.control(xval = 10,
+                                       minsplit = 100,
+                                       cp = 0.001)) 
+
+printcp(tr.TN)
+
+png("tree_TN.png")
+fancyRpartPlot(tr.TN)
+dev.off()
+
+png("tree_TN_CV.png")
+plotcp(tr.TN)
+dev.off()
+
+fancyRpartPlot(tr.TN)
+plotcp(tr.TN)
+
+```
+
+```{r}
+
+tr.TN.prune <- prune(tr.TN, cp = 0.01)
+
+TNtrain1$TN.PREDICT <- predict(tr.TN.prune, data = TNtrain1)
+  
+TNtrain1 <- TNtrain1 %>%
+  mutate(TN.SQ.ERROR = (TN - TN.PREDICT)^2)
+
+print("RSME is")
+sqrt(sum(TNtrain1$TN.SQ.ERROR)/dim(TNtrain1)[1])
+
+TNtrain1 %>% 
+  ggplot(aes(x = TN, y = TN.PREDICT)) +
+  geom_point(alpha = 0.2)
+
+ggsave("TN_tree_test_predictvsactual.png")
+
+TNtest1$TN.PREDICT <- predict(tr.TN.prune, data = TNtest1)
+  
+TPtest1 <- TPtest1 %>%
+  mutate(TP.SQ.ERROR = (TP - TP.PREDICT)^2)
+
+print("RSME is")
+sqrt(sum(TPtest1$TP.SQ.ERROR)/dim(TPtest1)[1])
+
+TPtest1 %>% 
+  ggplot(aes(x = TP, y = TP.PREDICT)) +
+  geom_point(alpha = 0.2) +
+  coord_equal() +
+  theme(aspect.ratio = 1) + xlim(0, 2) + ylim(0, 2)
+
+ggsave("tree_test_predictvsactual.png")
+
+```
+
+
+
+# Old stuff
 
 #### multivariate linear regression
 
