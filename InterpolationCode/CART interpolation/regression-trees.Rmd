@@ -99,25 +99,63 @@ model_summary2 <- data.frame(TN_sum2, TN_pred_sum2)
 TN <- c(MAE(data_test$TN, data_test$PREDICTED), RMSE(data_test$TN, data_test$PREDICTED), mean((data_test$TN - data_test$PREDICTED)^2))
 
 ```
+## functions take 3
 ```{r}
 rmna <- function(target, df) {
-  data <- df %>% filter_at(vars(!!sym(target), any_vars(!is.na(.))))
+  data <- df %>% filter_at(vars(target), any_vars(!is.na(.)))
   return(data)
 }
 
-split_data <- function() {
+split_data <- function(df) {
+  sample_size = 0.80 * nrow(df)
+  set.seed(571)
+  train_indices <- sample(seq_len(nrow(df)), size = sample_size)
+  
+  data_train <- df[train_indices, ]
+  data_test <- df[-train_indices, ]
+  
+  return(list(data_train, data_test))
   
 }
+
+make_trees <-function(target, df) {
+  
+  model_controls <- rpart.control(max_depth = 20)
+  tr_rpart <- rpart(target ~ .,
+                      data = df,
+                      method = "anova",
+                      control = model_controls )
+  title = paste(target, " prediction for all years")
+  tree <- fancyRpartPlot(tr_rpart, main = title)
+  ggsave(tree)
+  
+  return(tree)
+  
+}
+
 
 get_stats <- function() {
   
 }
 
 
-make_trees <- function(target, df) {
+
+rpart_model <- function(target, df) {
   water_data <- rmna(target, df)
   
-  return(water_data)
+  train_test <- split_data(water_data)
+  data_train <- data.frame(train_test[[1]])
+  data_test <- data.frame(train_test[[2]])
+
+  # the object type of data_train isn't right - i think the split_data function may not work well
+  
+  model <- make_trees(target, data_train)
+  
+  
+  
+  
+  
+  #return(data_train)
   
   
 }
@@ -127,11 +165,11 @@ make_trees <- function(target, df) {
 ```
 
 ```{r}
-trees <- lapply(water_vars, make_trees, water)
+trees <- lapply(water_vars, rpart_model, water)
 
 ```
 
-## Functions
+## Functions take 2
 ```{r}
 # Make new data frame with complete target variable column
 makeCompCol <- function(target, water_data) {
@@ -241,7 +279,7 @@ TP <- c(MAE(data_test$TP, data_test$PREDICTED_TP), RMSE(data_test$TP, data_test$
 
 
 
-# FUNCTIONS
+# FUNCTIONS take 1
 ```{r}
 # Make new data frame with complete target variable column
 makeCompCol <- function(target, water_data) {
