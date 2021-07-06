@@ -345,9 +345,11 @@ for var in continuous:
     best_lm.fit(best_poly.fit_transform(X_train), y_train)
     
     # Estimate performance on test set:
-    test_error = np.mean((y_test - best_lm.predict(best_poly.transform(X_test))) ** 2)
-    RMSE = np.sqrt(test_error)
+    MSE = np.mean((y_test - best_lm.predict(best_poly.transform(X_test))) ** 2)
+    RMSE = np.sqrt(MSE)
+    MAE = np.mean(abs(y_test - best_lm.predict(best_poly.transform(X_test))))
     print(f'Degree {best_d} polynomial has RMSE = {RMSE:.5f}')
+    print(f'Degree {best_d} polynomial has MAE = {MAE:.5f}')
 
 
 print("\n\nTesting by year, by season spatial interpolation")
