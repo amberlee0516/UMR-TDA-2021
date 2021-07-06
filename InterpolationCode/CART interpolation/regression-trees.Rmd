@@ -106,56 +106,75 @@ rmna <- function(target, df) {
   return(data)
 }
 
-split_data <- function(df) {
+get_train <- function(df) {
   sample_size = 0.80 * nrow(df)
   set.seed(571)
   train_indices <- sample(seq_len(nrow(df)), size = sample_size)
   
-  data_train <- df[train_indices, ]
-  data_test <- df[-train_indices, ]
-  
-  return(list(data_train, data_test))
+  return(train_indices)
   
 }
 
 make_trees <-function(target, df) {
+  print(target)
+  
+  #predictors <- names(df[!target])
+  #https://stackoverflow.com/questions/7500219/reading-rpart-input-parameters-from-a-text-variable
+  model_formula <- as.formula(paste(target, " ~ ."))
   
   model_controls <- rpart.control(max_depth = 20)
-  tr_rpart <- rpart(target ~ .,
+  tr_rpart <- rpart(model_formula,
                       data = df,
                       method = "anova",
                       control = model_controls )
   title = paste(target, " prediction for all years")
   tree <- fancyRpartPlot(tr_rpart, main = title)
-  ggsave(tree)
+  #ggsave(tree)
   
-  return(tree)
+  return(tr_rpart)
+  
+}
+
+get_stats <- function(df, target, errorBool) {
+  if(errorBool == TRUE) {
+    errors <- c(MAE(df$target, df$PREDICTED), RMSE(df$target, df$PREDICTED))
+    return(errors)
+    
+  } else {
+    
+    tar_sum <- summary(df$target)
+    pred_sum <- summary(df$PREDICTED)
+    
+    var_sum <- c(tar_sum[1], tar_sum[2], tar_sum[3], tar_sum[4], tar_sum[5], tar_sum[6])
+    var_pred_sum <-c(pred_sum[1], pred_sum[2], pred_sum[3], pred_sum[4], pred_sum[5], pred_sum[6])
+
+    model_summary <- data.frame(var_sum, var_pred_sum)
+    
+    return(model_summary)
+    
+  }
+    
+  ## ADD PLOTS
   
 }
 
 
-get_stats <- function() {
-  
-}
 
-
-
-rpart_model <- function(target, df) {
+rpart_model  <- function(target, df) {
   water_data <- rmna(target, df)
   
-  train_test <- split_data(water_data)
-  data_train <- data.frame(train_test[[1]])
-  data_test <- data.frame(train_test[[2]])
-
-  # the object type of data_train isn't right - i think the split_data function may not work well
+  indices <- get_train(df)
+  
+  data_train <- water_data[indices, ]
+  data_test <- water_data[-indices, ]
   
   model <- make_trees(target, data_train)
   
+  data_test$PREDICTED <-  predict(model, data_test)
+  #model_summary <- get_stats(water_data, FALSE)
+  #model_errors <-get_stats(water_data, TRUE)
   
-  
-  
-  
-  #return(data_train)
+  return(water_data$PREDICTED)
   
   
 }
