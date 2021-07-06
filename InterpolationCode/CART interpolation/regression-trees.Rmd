@@ -36,30 +36,173 @@ The data set that we are using has been cleaned to:
 
 ```{r}
 setwd("/Users/alainastockdill/UMR-TDA-2021/InterpolationCode/CART interpolation")
-water <- read.csv(file = "../../LTRM data/water_data_qfneg.csv")
+water_data <- read.csv(file = "../../LTRM data/water_data_qfneg.csv")
 
 ```
 
+Date and season are added in so that the model can use these values as predictors. Because these variables are included as predictors, we will not need to make separate trees from data that is filtered by these different values. Field number, stratum, and season are all made as categorical variables.
+
 ```{r}
 # Add in the date, year, and season
-water <- water %>% 
+water_data <- water_data %>% 
   mutate(nice_date = mdy(DATE),
          year = year(nice_date),
          season = quarter(nice_date, fiscal_start = 3)) %>%
   select(-SHEETBAR, -nice_date, -DATE, -LOCATCD)
 
 # Make the FLDNUM and STRATUM categorical variables
-water$FLDNUM <- as.character(water$FLDNUM)
-water$STRATUM <- as.character(water$STRATUM)
-water$season <- as.character(water$season)
+water_data$FLDNUM <- as.character(water$FLDNUM)
+water_data$STRATUM <- as.character(water$STRATUM)
+water_data$season <- as.character(water$season)
 
-water_vars <- list("TP", "TN", "TURB", "COND", "VEL", "WDP", "SECCHI", "CHLcal", "SS", "TEMP", "DO")
+water_vars <- list("TP", "TN", "VEL") #, "TURB", "COND","WDP", "SECCHI", "CHLcal", "SS", "TEMP", "DO")
 
 predictor_vars <- c("TP", "TN", "TURB", "COND", "VEL", "WDP", "season", "STRATUM", "FLDNUM", "CHLcal", "SS", "TEMP", "SECCHI", "DO", "year")
 
-model_data <- water[predictor_vars]
+rt_data <- water_data[predictor_vars]
 
 ```
+
+## FUNCTIONS
+* rmna_row: creates a subset of the entire data set that has a complete column of the variable we   are currently estimating
+
+* get_train_indices: creates a train/test split to test on our model
+
+* make_trees: creates a regression tree to predict a target varible - saves the tree output       (#https://stackoverflow.com/questions/7500219/reading-rpart-input-parameters-from-a-text-variable)
+
+* rt_evalution: takes a target variable with a data and uses the three previous functions to        output a testing data with a predicted column for that variable
+
+* make_plots: makes an actual versus predicted scatter plot and box plots for each actual and       predicted column of the current target variable - will save both plots
+
+* get_model_stats: depending on the errorsBool, this function will either return a list containing   the MAE and RMSE of actual versus predicted values or return a dataframe that contains the        summary stats (Min, Q1, Mean, Q3, Max) for both the actual and predicted column
+
+
+```{r}
+rmna_rows <- function(target_var, df) {
+  df <- df %>% filter_at(vars(target_var), any_vars(!is.na(.)))
+  return(df)
+}
+
+get_train_indices <- function(df) {
+  sample_size = 0.80 * nrow(df)
+  set.seed(571)
+  train_indices <- sample(seq_len(nrow(df)), size = sample_size)
+  
+  return(train_indices)
+  
+}
+
+make_trees <-function(target_var, df) {
+  
+  rpart_formula <- as.formula(paste(target_var, " ~ ."))
+  
+  model_controls <- rpart.control(cp = .1)
+  tr_rpart <- rpart(rpart_formula,
+                      data = df,
+                      method = "anova",
+                      control = model_controls )
+  
+  tree_title = paste("tree_",target_var, sep = "")
+  png_name = paste(tree_title, ".png", sep = "") 
+  
+  png(png_name)
+  tree <- fancyRpartPlot(tr_rpart, main = tree_title)
+  dev.off()
+  
+  return(tr_rpart)
+  
+}
+
+rt_evaluation  <- function(target_var, df) {
+  df <- rmna_rows(target_var, df)
+  
+  indices <- get_train_indices(df)
+
+  data_train <- df[indices, ]
+  data_test <- df[-indices, ]
+  
+  model <- make_trees(target_var, data_train)
+  
+  pred_col_name <- paste("PREDICTED_", target_var, sep = "") # New predicted column
+  data_test[ , pred_col_name] <-  predict(model, data_test)
+  
+  return(data_test)
+}
+
+make_plots <- function(data_test, target_actual, target_pred) {
+    X <- data_test[ , target_actual]
+    Y <- data_test[ , target_pred]
+    
+    # scatter plot
+    png_name = paste(target_actual, "_predvactual.png", sep = "")
+    ggplot(data_test, mapping = aes(x = X, y = Y)) +
+      geom_point(alpha = .02) + 
+      coord_equal() +
+      theme(aspect.ratio = 1) + xlim(0, 2) + ylim(0, 2)
+    ggsave(png_name)
+    
+    # box plot
+    png_name = paste(target_actual, "_boxplot.png", sep = "")
+    ggplot(data_test) + 
+      geom_boxplot(aes(x = interaction(X,Y)))
+    ggsave(png_name)
+  
+}
+
+
+get_model_stats <- function(data_test, errorBool) {
+  
+  data_test <- data.frame(data_test) # make sure data_test is a dataframe
+  
+  # get the target variable
+  target_pred  <- names(select(data_test, contains("PREDICTED_")))  # column name
+  target_actual <- sub("PREDICTED_", "", target_pred)
+  
+  if( errorBool == TRUE )  {
+    
+    errors <- c( MAE(data_test[ , target_actual], data_test[ , target_pred]), 
+                 RMSE(data_test[ , target_actual], data_test[ , target_pred]))
+    
+    return(errors)
+    
+  } else {
+    
+    actual_sum <- summary( data_test[ , target_actual] ) 
+    predicted_sum <- summary( data_test[ , target_pred] )
+    
+    actual <- c(actual_sum[1], actual_sum[2], actual_sum[3],
+                 actual_sum[4], actual_sum[5], actual_sum[6])
+    
+    predicted <-c(predicted_sum[1], predicted_sum[2], predicted_sum[3], 
+                     predicted_sum[4], predicted_sum[5], predicted_sum[6])
+
+    model_summary <- data.frame(actual, predicted)
+    
+    # actual v pred and boxplots 
+    make_plots(data_test, target_actual, target_pred)
+    
+    return(model_summary)
+    
+  }
+}
+
+
+```
+
+```{r}
+water_var_preds <- lapply(water_vars, rt_evaluation, rt_data)
+
+```
+
+```{r}
+water_var_errors <- lapply( water_var_preds, get_model_stats, TRUE )
+water_var_summary <- lapply( water_var_preds, get_model_stats, FALSE )
+
+## append the dataframes with better names
+
+```
+
+
 ## TN
 ```{r}
 ### COMPLETE TN COLUMN ###
@@ -99,94 +242,7 @@ model_summary2 <- data.frame(TN_sum2, TN_pred_sum2)
 TN <- c(MAE(data_test$TN, data_test$PREDICTED), RMSE(data_test$TN, data_test$PREDICTED), mean((data_test$TN - data_test$PREDICTED)^2))
 
 ```
-## functions take 3
-```{r}
-rmna <- function(target, df) {
-  data <- df %>% filter_at(vars(target), any_vars(!is.na(.)))
-  return(data)
-}
 
-get_train <- function(df) {
-  sample_size = 0.80 * nrow(df)
-  set.seed(571)
-  train_indices <- sample(seq_len(nrow(df)), size = sample_size)
-  
-  return(train_indices)
-  
-}
-
-make_trees <-function(target, df) {
-  print(target)
-  
-  #predictors <- names(df[!target])
-  #https://stackoverflow.com/questions/7500219/reading-rpart-input-parameters-from-a-text-variable
-  model_formula <- as.formula(paste(target, " ~ ."))
-  
-  model_controls <- rpart.control(max_depth = 20)
-  tr_rpart <- rpart(model_formula,
-                      data = df,
-                      method = "anova",
-                      control = model_controls )
-  title = paste(target, " prediction for all years")
-  tree <- fancyRpartPlot(tr_rpart, main = title)
-  #ggsave(tree)
-  
-  return(tr_rpart)
-  
-}
-
-get_stats <- function(df, target, errorBool) {
-  if(errorBool == TRUE) {
-    errors <- c(MAE(df$target, df$PREDICTED), RMSE(df$target, df$PREDICTED))
-    return(errors)
-    
-  } else {
-    
-    tar_sum <- summary(df$target)
-    pred_sum <- summary(df$PREDICTED)
-    
-    var_sum <- c(tar_sum[1], tar_sum[2], tar_sum[3], tar_sum[4], tar_sum[5], tar_sum[6])
-    var_pred_sum <-c(pred_sum[1], pred_sum[2], pred_sum[3], pred_sum[4], pred_sum[5], pred_sum[6])
-
-    model_summary <- data.frame(var_sum, var_pred_sum)
-    
-    return(model_summary)
-    
-  }
-    
-  ## ADD PLOTS
-  
-}
-
-
-
-rpart_model  <- function(target, df) {
-  water_data <- rmna(target, df)
-  
-  indices <- get_train(df)
-  
-  data_train <- water_data[indices, ]
-  data_test <- water_data[-indices, ]
-  
-  model <- make_trees(target, data_train)
-  
-  data_test$PREDICTED <-  predict(model, data_test)
-  #model_summary <- get_stats(water_data, FALSE)
-  #model_errors <-get_stats(water_data, TRUE)
-  
-  return(water_data$PREDICTED)
-  
-  
-}
-
-
-
-```
-
-```{r}
-trees <- lapply(water_vars, rpart_model, water)
-
-```
 
 ## Functions take 2
 ```{r}
