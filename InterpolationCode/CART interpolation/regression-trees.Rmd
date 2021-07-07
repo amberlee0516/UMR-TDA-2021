@@ -96,7 +96,7 @@ make_trees <-function(target_var, df) {
   
   rpart_formula <- as.formula(paste(target_var, " ~ ."))
   
-  model_controls <- rpart.control(cp = .01)
+  model_controls <- rpart.control(cp = .011)
   tr_rpart <- rpart(rpart_formula,
                       data = df,
                       method = "anova",
@@ -144,7 +144,7 @@ make_plots <- function(data_test, target_actual, target_pred) {
       theme(aspect.ratio = 1) + xlim(0, 2) + ylim(0, 2)
     ggsave(png_name)
     
-    # box plot
+    # box plot -TODO
     png_name = paste(target_actual, "_boxplot.png", sep = "")
     ggplot(data_test) + 
       geom_boxplot(aes(x = interaction(X,Y)))
@@ -162,9 +162,11 @@ get_model_stats <- function(data_test, errorBool) {
   target_actual <- sub("PREDICTED_", "", target_pred)
   
   if( errorBool == TRUE )  {
+  
+    errors <- c(MAE(data_test[ , target_actual], data_test[ , target_pred]), 
+                RMSE(data_test[ , target_actual], data_test[ ,target_pred]))
     
-    errors <- c( MAE(data_test[ , target_actual], data_test[ , target_pred]), 
-                 RMSE(data_test[ , target_actual], data_test[ , target_pred]))
+    #errors <- errors %>% rename(errors = target_actual
     
     return(errors)
     
@@ -181,8 +183,11 @@ get_model_stats <- function(data_test, errorBool) {
 
     model_summary <- data.frame(actual, predicted)
     
+    names(model_summary)[1] <- target_actual
+    names(model_summary)[2] <- target_pred
+    
     # actual v pred and boxplots 
-    make_plots(data_test, target_actual, target_pred)
+    #make_plots(data_test, target_actual, target_pred)
     
     return(model_summary)
     
@@ -195,6 +200,19 @@ get_model_stats <- function(data_test, errorBool) {
 water_var_preds <- lapply(water_vars, rt_evaluation, rt_data)
 water_var_errors <- lapply( water_var_preds, get_model_stats, TRUE )
 water_var_summary <- lapply( water_var_preds, get_model_stats, FALSE )
+
+# combine columns
+type <- c("MAE", "RMSE")
+TN <- water_var_errors[[2]]
+TP <- water_var_errors[[1]]
+VEL <- water_var_errors[[3]]
+model_errors <- data.frame( type, TP, TN, VEL)
+
+one <- water_var_summary[[1]]
+two <- water_var_summary[[2]]
+three <- water_var_summary[[3]]
+model_summary <- data.frame(one, two, three)
+
 ```
 
 
@@ -239,238 +257,6 @@ TN <- c(MAE(data_test$TN, data_test$PREDICTED), RMSE(data_test$TN, data_test$PRE
 ```
 
 
-## Functions take 2
-```{r}
-# Make new data frame with complete target variable column
-makeCompCol <- function(target, water_data) {
-  data <- water_data %>% filter_at(vars(!!sym(target), any_vars(!is.na(.))))
-  return(data)
-}
-
-
-test_model <- function(target, model, water_data, water_test) {
-  water_test$PREDICTED <- predict(model, water_test)
-  summary <- summary(water_test[!!sym(target)])
-  pred_summary <- summary(data_test$PREDICTED)
-  
-  return 
-  
-  TN_sum <- c(summary[1], summary[2], summary[3], summary[4], summary[5], summary[6])
-  TN_pred_sum <-c(pred_summary[1], pred_summary[2], pred_summary[3], pred_summary[4], pred_summary[5], pred_summary[6])
-  
-  model_summary <- data.frame(TN_sum, TN_pred_sum)
-  
-  
-  TN <- c(MAE(data_test$TN, data_test$PREDICTED), RMSE(data_test$TN, data_test$PREDICTED), mean((data_test$TN - data_test$PREDICTED)^2))
-    
-}
-
-
-make_models <- function(target, water_data) {
-  
-  sample_size = 0.80 * nrow(water_data)
-  set.seed(571)
-  train_indices <- sample(seq_len(nrow(water_data)), size = sample_size)
-  
-  data_train <- water_data[train_indices, ]
-  data_test <- water_data[-train_indices, ]
-  
-  set.seed(4321)
-  model_controls <- rpart.control(max_depth = 20)
-  tr_rpart <- rpart(!!sym(target) ~ .,
-                      data = data_train,
-                      method = "anova",
-                      control = model_controls )
-  #title = paste(target, " prediction for all years")
-  #fancyRpartPlot(tr_rpart, main = title)
-  
-  data_test$PREDICTED <- predict(model, data_test)
-  summary <- summary(data_test[!!sym(target)])
-  pred_summary <- summary(data_test$PREDICTED)
-  
-   TN_sum <- c(summary[1], summary[2], summary[3], summary[4], summary[5], summary[6])
-  TN_pred_sum <-c(pred_summary[1], pred_summary[2], pred_summary[3], pred_summary[4], pred_summary[5], pred_summary[6])
-  
-  model_summary <- data.frame(TN_sum, TN_pred_sum)
-  
-  
-  TN <- c(MAE(data_test$TN, data_test$PREDICTED), RMSE(data_test$TN, data_test$PREDICTED), mean((data_test$TN - data_test$PREDICTED)^2))
-}
-
-
-```
-
-
-
-
-## TP
-```{r}
-### COMPLETE TP COLUMN ###
-# Create a new data set that removes only the na TN values
-water_TP = model_data %>%
-  filter_at(vars(TP), any_vars(!is.na(.)))
-
-
-sample_size = 0.80 * nrow(water_TP)
-set.seed(571)
-train_indices <- sample(seq_len(nrow(water_TP)), size = sample_size)
-
-data_train <- water_TP[train_indices, ]
-data_test <- water_TP[-train_indices, ]
-
-set.seed(4321)
-model_controls <- rpart.control(max_depth = 20)
-tr.TP_rpart <- rpart(TP ~ .,
-                    data = data_train,
-                    method = "anova",
-                    control = model_controls )
-fancyRpartPlot(tr.TP_rpart, main = "TP prediction for all years")
-
-data_test$PREDICTED_TP <- predict(tr.TP_rpart, data_test)
-summary <- summary(data_test$TP)
-pred_summary <- summary(data_test$PREDICTED_TP)
-
-TP_sum <- c(summary[1], summary[2], summary[3], summary[4], summary[5], summary[6])
-TP_pred_sum <-c(pred_summary[1], pred_summary[2], pred_summary[3], pred_summary[4], pred_summary[5], pred_summary[6])
-
-TP_model_summary <- data.frame(TP_sum, TP_pred_sum)
-
-model_summary<- rbind(model_summary, TP_model_summary)
-
-TP <- c(MAE(data_test$TP, data_test$PREDICTED_TP), RMSE(data_test$TP, data_test$PREDICTED_TP), mean((data_test$TP - data_test$PREDICTED_TP)^2))
-
-```
-
-
-
-
-
-
-
-
-
-# FUNCTIONS take 1
-```{r}
-# Make new data frame with complete target variable column
-makeCompCol <- function(target, water_data) {
-  data <- water_data %>% filter_at(vars(!!sym(target), any_vars(!is.na(.))))
-  return(data)
-}
-
-model_stats <- function(model, water_data, data_test, target){
-  
-  data_test$PREDICTED <- predict(model, data_test)
-  summary <- summary(data_test$target)
-  pred_summary <- summary(data_test$PREDICTED_TP)
-  
-  TP_sum <- c(summary[1], summary[2], summary[3], summary[4], summary[5], summary[6])
-  TP_pred_sum <-c(pred_summary[1], pred_summary[2], pred_summary[3], pred_summary[4], pred_summary[5], pred_summary[6])
-  
-  TP_model_summary <- data.frame(TP_sum, TP_pred_sum)
-  
-  model_summary<- rbind(model_summary, TP_model_summary)
-  
-  TP <- c(MAE(data_test$TP, data_test$PREDICTED_TP), RMSE(data_test$TP, data_test$PREDICTED_TP), mean((data_test$TP - data_test$PREDICTED_TP)^2))
-  
-  
-  
-}
-
-
-# Make a model for each of the dataframes with a complete target column
-make_models <- function(target, water_data) {
-  sample_size = 0.80 * nrow(water_data)
-  set.seed(571)
-  train_indices <- sample(seq_len(nrow(water_data)), size = sample_size)
-  
-  data_train <- water_data[train_indices, ]
-  data_test <- water_data[-train_indices, ]
-  
-  model_controls = rpart.control(cp = .01)
-  tr.rpart <- rpart( target ~ .,
-                    data = water_data,
-                    method = "anova",
-                    control = model_controls)
-  
-  data_test$PREDICTED <- predict(tr.TN_rpart, data_test)
-  
-  model_sum <- summary(data_test[!!sym(target), "PREDICTED"])
-  
-  mae <- MAE(data_test$TN, data_test$PREDICTED)
-  rmse <- RMSE(data_test$TN, data_test$PREDICTED)
-  mse <- mean((data_test$TN - data_test$PREDICTED)^2)
-  
-  return(list(model_sum, mae, rmse, mse))
-  
-}
-
-
-
-
-```
-
-```{r}
-model_dfs <- lapply(water_vars, makeCompCol, model_data)
-tree_models <- lapply(water_vars, make_models, model_data)
-
-# Print the trees
-lapply(1:4, function(x) fancyRpartPlot(tree_models[[x]],
-                                               main = paste(as.character(x)) ))
-
-```
-
-```{r}
-
-sample_size = 0.80 * nrow(water_TN)
-set.seed(571)
-train_indices <- sample(seq_len(nrow(water_TN)), size = sample_size)
-
-data_train <- comp_TN_data[train_indices, ]
-data_test <- comp_TN_data[-train_indices, ]
-
-set.seed(4321)
-tr.TN_rpart1 <- rpart(TN ~ .,
-                    data = data_train,
-                    method = "anova",
-                    control = (maxdepth = 20))
-fancyRpartPlot(tr.TN_rpart, main = "TN prediction for all years")
-
-
-# Test the model on both the training and testing data
-data_train$PREDICTED <- predict(tr.TN_rpart, data_train)
-data_test$PREDICTED <- predict(tr.TN_rpart, data_test)
-
-# Plots for actual v. predicted TN values in both the training and testing data
-ggplot(data_train, mapping = aes(TN, PREDICTED)) +
-  geom_point(alpha = 0.1)
-
-train_lm <- lm(PREDICTED ~ TN, data = data_train)
-
-ggplot(data_test, mapping = aes(TN, PREDICTED)) +
-  geom_point(alpha = 0.1)
-
-test_lm <- lm(PREDICTED ~ TN, data = data_test)
-
-# Get the RMSE and correlation coefficient for the test data
-print("Mean absolute error: ")
-MAE(data_test$TN, data_test$PREDICTED)
-print("Root mean square error: ")
-RMSE(data_test$TN, data_test$PREDICTED)
-print("Mean square error: ")
-mean((data_test$TN - data_test$PREDICTED)^2)
-#cor(data_test$TN, data_test$PREDICTED)
-print("R-square: ")
-summary(test_lm)$r.squared
-unique(water$FLDNUM)
-
-
-```
-
-
-
-
-
-
 
 ```{r}
 ### RPART MODEL ###
@@ -492,38 +278,3 @@ rsq.rpart(tr.TN_rpart)
 summary(tr.TN_rpart)
 ```
 
-
-
-
-
-
-
-# Model for all years and seasons combined 
-
-In this model we will only be splitting by the target response variable. A model will be created for each continuous variable using data from all years and seasons. 
-
-```{r}
-create_models <- function(target, water_data) {
-  # make a subset of the data with a complete target variable column
-  temp <- water_data %>% filter(!is.na(target))
-  
-  model_controls = rpart.control(cp = .01)
-  tr.rpart <- rpart(target ~ .,
-                    data = temp,
-                    method = "anova",
-                    control = model_controls)
-  return(tr.rpart)
-}
-```
-
-
-```{r}
-
-trees_models <- lapply(water_vars, create_models, model_data)
-
-```
-
-```{r}
-citation(package = 'rpart')
-
-```
