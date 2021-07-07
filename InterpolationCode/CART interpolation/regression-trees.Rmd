@@ -1,7 +1,7 @@
 ---
-title: "LRTM_CART"
+title: "Regression Tree Interpolation"
 author: "Alaina Stockdill"
-data: "07/1/2021"
+date: "07/1/2021"
 output: pdf_document
 ---
 
@@ -33,6 +33,7 @@ The data set that we are using has been cleaned to:
   4. Filtered for surface samples (excluded mid and bottom samples)
   5. Filtered for random samples (excluded fixed sites in river tributaries)
   6. Combined rows that had the sample SHEETBAR values
+  
 
 ```{r}
 setwd("/Users/alainastockdill/UMR-TDA-2021/InterpolationCode/CART interpolation")
@@ -63,12 +64,21 @@ rt_data <- water_data[predictor_vars]
 
 ```
 
-## FUNCTIONS
+## Assumptions
+
+While there are missing values in all continuous variables, we will be begin by interpolating for only TP, TN, and VEL, the variables with the most missingness. We will be usin TP, TN, TURB, COND, VEL, WDP, season, year, STRATUM, FLDNUM, CHLcal, SS, TEMP, SECCHI, and DO as our predictor variables. We will use an 80/20 train-test split to create the model and test for its accuracy. The train and test data for the tree for each interpolated variable will be made from a subset of the entire cleaned UMR data set that has no missing values for the current target variable. 
+
+After having created this models, we used the 1-SE rule to set the CP control method. Since TN is so poorly predicted, we will be only taking into account the CP value suggested for TP and VEL. The CP value for TP needed to be between .015 and .01 and for VEL it needed to be between .01 and .03. We will use CP = .011. 
+
+The MAE, RMSE, and summary stats for the regression tree models for interpolating TP, TN, VEL will be calculated using the test data.
+
+## Functions
+
 * rmna_row: creates a subset of the entire data set that has a complete column of the variable we   are currently estimating
 
 * get_train_indices: creates a train/test split to test on our model
 
-* make_trees: creates a regression tree to predict a target varible - saves the tree output       (#https://stackoverflow.com/questions/7500219/reading-rpart-input-parameters-from-a-text-variable)
+* make_trees: creates a regression tree to predict a target variable - saves the tree output       (#https://stackoverflow.com/questions/7500219/reading-rpart-input-parameters-from-a-text-variable)
 
 * rt_evalution: takes a target variable with a data and uses the three previous functions to        output a testing data with a predicted column for that variable
 
@@ -141,14 +151,18 @@ make_plots <- function(data_test, target_actual, target_pred) {
     ggplot(data_test, mapping = aes(x = X, y = Y)) +
       geom_point(alpha = .02) + 
       coord_equal() +
-      theme(aspect.ratio = 1) + xlim(0, 2) + ylim(0, 2)
+      theme(aspect.ratio = 1) + xlim(0, 4) + ylim(0, 4) +
+      labs( y = target_pred, x = target_actual)
     ggsave(png_name)
     
     # box plot -TODO
-    png_name = paste(target_actual, "_boxplot.png", sep = "")
-    ggplot(data_test) + 
-      geom_boxplot(aes(x = interaction(X,Y)))
-    ggsave(png_name)
+    #png_name = paste(target_actual, "_boxplot.png", sep = "")
+    #ggplot(data_test) + 
+    #  geom_boxplot(aes(x = interaction(X,Y)))
+    #ggsave(png_name)
+    
+    # historgram
+    #png_name = paste(target_actual, "")
   
 }
 
@@ -166,7 +180,7 @@ get_model_stats <- function(data_test, errorBool) {
     errors <- c(MAE(data_test[ , target_actual], data_test[ , target_pred]), 
                 RMSE(data_test[ , target_actual], data_test[ ,target_pred]))
     
-    #errors <- errors %>% rename(errors = target_actual
+    #errors <- errors %>% rename(errors = target_actual)
     
     return(errors)
     
@@ -187,7 +201,7 @@ get_model_stats <- function(data_test, errorBool) {
     names(model_summary)[2] <- target_pred
     
     # actual v pred and boxplots 
-    #make_plots(data_test, target_actual, target_pred)
+    make_plots(data_test, target_actual, target_pred)
     
     return(model_summary)
     
@@ -216,65 +230,65 @@ model_summary <- data.frame(one, two, three)
 ```
 
 
-## TN
+### Scratch work 
 ```{r}
-### COMPLETE TN COLUMN ###
-# Create a new data set that removes only the na TN values
-water_TN = model_data %>%
-  filter_at(vars(TN), any_vars(!is.na(.)))
-
-
-sample_size = 0.80 * nrow(water_TN)
-set.seed(571)
-train_indices <- sample(seq_len(nrow(water_TN)), size = sample_size)
-
-data_train <- water_TN[train_indices, ]
-data_test <- water_TN[-train_indices, ]
-
-set.seed(4321)
-model_controls <- rpart.control(max_depth = 20)
-tr.TN_rpart <- rpart(TN ~ .,
-                    data = data_train,
-                    method = "anova",
-                    control = model_controls )
-fancyRpartPlot(tr.TN_rpart, main = "TN prediction for all years")
-
-data_test$PREDICTED_TN <- predict(tr.TN_rpart, data_test)
-summary <- summary(data_test$TN)
-pred_summary <- summary(data_test$PREDICTED_TN)
-
-TN_sum <- c(summary[1], summary[2], summary[3], summary[4], summary[5], summary[6])
-TN_pred_sum <-c(pred_summary[1], pred_summary[2], pred_summary[3], pred_summary[4], pred_summary[5], pred_summary[6])
-
-TN_sum2 <- list(unname(summary(data_test$TN)))
-TN_pred_sum2 <- list(unname(summary(data_test$PREDICTED_TN)))
-
-model_summary <- data.frame(TN_sum, TN_pred_sum)
-model_summary2 <- data.frame(TN_sum2, TN_pred_sum2)
-
-TN <- c(MAE(data_test$TN, data_test$PREDICTED), RMSE(data_test$TN, data_test$PREDICTED), mean((data_test$TN - data_test$PREDICTED)^2))
-
+# ### COMPLETE TN COLUMN ###
+# # Create a new data set that removes only the na TN values
+# water_TN = model_data %>%
+#   filter_at(vars(TN), any_vars(!is.na(.)))
+# 
+# 
+# sample_size = 0.80 * nrow(water_TN)
+# set.seed(571)
+# train_indices <- sample(seq_len(nrow(water_TN)), size = sample_size)
+# 
+# data_train <- water_TN[train_indices, ]
+# data_test <- water_TN[-train_indices, ]
+# 
+# set.seed(4321)
+# model_controls <- rpart.control(max_depth = 20)
+# tr.TN_rpart <- rpart(TN ~ .,
+#                     data = data_train,
+#                     method = "anova",
+#                     control = model_controls )
+# fancyRpartPlot(tr.TN_rpart, main = "TN prediction for all years")
+# 
+# data_test$PREDICTED_TN <- predict(tr.TN_rpart, data_test)
+# summary <- summary(data_test$TN)
+# pred_summary <- summary(data_test$PREDICTED_TN)
+# 
+# TN_sum <- c(summary[1], summary[2], summary[3], summary[4], summary[5], summary[6])
+# TN_pred_sum <-c(pred_summary[1], pred_summary[2], pred_summary[3], pred_summary[4], pred_summary[5], pred_summary[6])
+# 
+# TN_sum2 <- list(unname(summary(data_test$TN)))
+# TN_pred_sum2 <- list(unname(summary(data_test$PREDICTED_TN)))
+# 
+# model_summary <- data.frame(TN_sum, TN_pred_sum)
+# model_summary2 <- data.frame(TN_sum2, TN_pred_sum2)
+# 
+# TN <- c(MAE(data_test$TN, data_test$PREDICTED), RMSE(data_test$TN, data_test$PREDICTED), mean((data_test$TN - data_test$PREDICTED)^2))
+# 
 ```
 
 
 
 ```{r}
-### RPART MODEL ###
-# Runs on the entire data set - even with na values in all columns
-set.seed(84726)
-temp_controls = rpart.control(cp = .01)
-tr.TN_rpart <- rpart(TN ~ .,
-                    data = water,
-                    method = "anova",
-                    control = temp_controls)
-fancyRpartPlot(tr.TN_rpart, main = "TN prediction: cp = .1")
-```
+# ### RPART MODEL ###
+# # Runs on the entire data set - even with na values in all columns
+# set.seed(84726)
+# temp_controls = rpart.control(cp = .01)
+# tr.TN_rpart <- rpart(TN ~ .,
+#                     data = water,
+#                     method = "anova",
+#                     control = temp_controls)
+# fancyRpartPlot(tr.TN_rpart, main = "TN prediction: cp = .1")
+# ```
 
-```{r}
-# Tree evaluation summary 
-plotcp(tr.TN_rpart)
-printcp(tr.TN_rpart)
-rsq.rpart(tr.TN_rpart)
-summary(tr.TN_rpart)
+# ```{r}
+# # Tree evaluation summary 
+# plotcp(tr.TN_rpart)
+# printcp(tr.TN_rpart)
+# rsq.rpart(tr.TN_rpart)
+# summary(tr.TN_rpart)
 ```
 
