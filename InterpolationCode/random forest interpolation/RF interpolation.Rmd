@@ -1,0 +1,229 @@
+---
+title: "Random Forests"
+author: "Amber Lee"
+date: "7/6/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+# Set up
+
+### Load libraries
+
+```{r}
+library(tidyverse)
+library(stringr)
+library(lubridate)
+library(rsample)      # data splitting 
+library(randomForest) # basic implementation
+library(ranger)       # a faster implementation of randomForest
+```
+
+### Read data
+
+```{r}
+water20 <- read.csv("../../LTRM data/water_data_qfneg.csv", header = TRUE)
+```
+
+### Data cleaning
+
+* Add year and season variable
+
+* Change `FLDNUM` to be categorical (character).
+
+
+```{r}
+
+water20 <- water20 %>%
+  mutate(nice_date = mdy(DATE),
+         year = year(nice_date),
+         quarter = quarter(nice_date, fiscal_start = 3),
+         quarter = as.factor(quarter),
+         FLDNUM = case_when(FLDNUM == 1 ~ "Lake City, MN", 
+                            FLDNUM == 2 ~ "Onalaska, WI",
+                            FLDNUM == 3 ~ "Bellevue, IA",
+                            FLDNUM == 4 ~ "Brighton, IL",
+                            FLDNUM == 5 ~ "Jackson, MO",
+                            FLDNUM == 6 ~ "Havana, IL"),
+         FLDNUM = as.factor(FLDNUM),
+         STRATUM = as.factor(STRATUM)) %>% # CART can split on categorical variable if
+                                         # encoded as a factor variable
+  select(-SHEETBAR, -nice_date, -DATE, -LOCATCD) 
+
+```
+
+## Random forests notes
+
+[UC Riverside Programming Guide](https://uc-r.github.io/random_forests)
+
+* Trees can have high variance and poor predictive performance
+
+* Bagging trees (growing trees from a bootstrap resample of the training data) introduces randomness. However, bagged trees are still correlated because of similar structure of data. (The first few splits tend to be the same.)
+
+* Random forests extend on bagged trees by limiting each split to a random subset of all the variables. Let $p$ be the number of variables and $m$ be the size of this random subset. Usually $m = p/3$. Random forests have the least correlated trees.
+
+* Out of bag (OOB) error: as a result of the bootstrap resampling, the data that *aren't* sample provide a natural validation set. This helps to decide on the number of trees to stabilize the error rate.
+
+* One disadvantage is computational time. 
+
+* Random forests are not able to hand missing predictor values. https://stats.stackexchange.com/questions/98953/why-doesnt-random-forest-handle-missing-values-in-predictors 
+
+# Implement RF with randomForest
+
+Unable to predict when another variable is missing
+
+## Total Phosphorous 
+```{r}
+set.seed(4774)
+
+fullTP <- water20 %>% filter(!is.na(TP))
+
+TP_split <- initial_split(fullTP, prop = 0.8)
+TP_train <- training(TP_split)
+TP_test <- testing(TP_split)
+```
+
+
+```{r}
+
+TP_rf <- randomForest(
+  formula = TP ~ .,
+  data    = TP_train,
+  na.action = na.roughfix
+)
+
+TP_rf
+plot(sqrt(TP_rf$mse), type = "l")
+which.min(TP_rf$mse)
+
+
+
+```
+
+```{r}
+
+TP_pred <- predict(TP_rf, newdata = TP_test)
+
+TP_test$TP_pred <- TP_pred
+
+TP_eval <- TP_test %>%
+  filter(!is.na(TP_pred)) %>%
+  mutate(residual_sq = (TP - TP_pred)^2,
+         abs_residual = abs(TP - TP_pred)) %>%
+  select(TP, TP_pred, residual_sq, abs_residual)
+
+print("RSME")
+sqrt(sum(TP_eval$residual_sq)/dim(TP_eval)[1])
+
+print("MAE")
+sum(TP_eval$abs_residual)/dim(TP_eval)[1]
+
+```
+```{r}
+dim(TP_eval)
+dim(TP_test)
+dim(TP_train)
+dim(fullTP)
+```
+
+
+## Total Nitrogen
+
+```{r}
+
+fullTN <- water20 %>% filter(!is.na(TN)) %>% sample_frac(0.5)
+TN_split <- initial_split(fullTN, prop = 0.8)
+TN_train <- training(TN_split)
+TN_test <- testing(TN_split)
+
+# default RF model
+TN_rf <- randomForest(
+  formula = TN ~ .,
+  data    = TN_train,
+  na.action = na.roughfix
+)
+
+TN_rf
+plot(sqrt(TN_rf$mse), type = "l")
+which.min(TN_rf$mse)
+
+
+```
+
+```{r}
+
+TN_test$TN_pred <- predict(TN_rf, newdata = TN_test)
+
+TN_eval <- TN_test %>%
+  filter(!is.na(TN_pred)) %>%
+  mutate(residual_sq = (TN - TN_pred)^2,
+         abs_residual = abs(TN - TN_pred)) %>%
+  select(TN, TN_pred, residual_sq, abs_residual)
+
+print("RSME")
+sqrt(sum(TN_eval$residual_sq)/dim(TN_eval)[1])
+
+print("MAE")
+sum(TN_eval$abs_residual)/dim(TN_eval)[1]
+
+```
+
+```{r}
+dim(TN_eval)
+dim(TN_test)
+dim(TN_train)
+dim(fullTN)
+```
+
+## Velocity
+
+```{r}
+
+fullVEL <- water20 %>% filter(!is.na(VEL)) %>% sample_frac(0.5)
+VEL_split <- initial_split(fullVEL, prop = 0.8)
+VEL_train <- training(VEL_split)
+VEL_test <- testing(VEL_split)
+
+VEL_rf <- randomForest(
+  formula = VEL ~ .,
+  data    = VEL_train,
+  na.action = na.roughfix
+)
+
+VEL_rf
+plot(sqrt(VEL_rf$mse), type = "l")
+which.min(VEL_rf$mse)
+
+```
+
+```{r}
+
+VEL_test$VEL_pred <- predict(VEL_rf, newdata = VEL_test)
+
+VEL_eval <- VEL_test %>%
+  filter(!is.na(VEL_pred)) %>%
+  mutate(residual_sq = (VEL - VEL_pred)^2,
+         abs_residual = abs(VEL - VEL_pred)) %>%
+  select(VEL, VEL_pred, residual_sq, abs_residual)
+
+print("RSME")
+sqrt(sum(VEL_eval$residual_sq)/dim(VEL_eval)[1])
+
+print("MAE")
+sum(VEL_eval$abs_residual)/dim(VEL_eval)[1]
+
+```
+
+```{r}
+dim(VEL_eval)
+dim(VEL_test)
+dim(VEL_train)
+dim(fullVEL)
+```
+
+
+
+
