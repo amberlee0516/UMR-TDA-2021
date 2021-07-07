@@ -1,0 +1,30 @@
+Now adding a year column
+Now adding a month column
+Now adding a season column
+
+ Water data
+Index(['SHEETBAR', 'DATE', 'LATITUDE', 'LONGITUDE', 'FLDNUM', 'STRATUM',
+       'LOCATCD', 'TN', 'TP', 'TEMP', 'DO', 'TURB', 'COND', 'VEL', 'SS', 'WDP',
+       'CHLcal', 'SECCHI', 'YEAR', 'MONTH', 'SEASON'],
+      dtype='object')
+(82481, 21)
+Testing multivariate polynomial interpolation, using every other variable as a predictor besides target variable
+Filtering out all rows with missing data
+(20099, 21)
+Filtering out colums that we dont need
+(20099, 11)
+
+-----------------------------------
+Building model for  TN
+Degree 1 polynomial has RMSE = 2.68365
+Degree 1 polynomial has MAE = 0.88887
+
+-----------------------------------
+Building model for  TP
+Degree 1 polynomial has RMSE = 0.14207
+Degree 1 polynomial has MAE = 0.06618
+
+-----------------------------------
+Building model for  VEL
+Degree 2 polynomial has RMSE = 0.32102
+Degree 2 polynomial has MAE = 0.16283

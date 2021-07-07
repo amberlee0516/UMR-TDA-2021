@@ -177,7 +177,7 @@ def predict(tuples,numclosest = 2):
       
 '''
 data - the pandas dataframe that is ready to interpolate missing values
-MUST HAVE "LATITUDE", "LONGITUDE","YEAR", "TIME CODE", "LOCATCD" columns
+MUST HAVE "LATITUDE", "LONGITUDE","YEAR", "SEASON", "LOCATCD" columns
 
 missing_vars - the list of column names (as strings) of the dataframe that we should attempt to fill in
 
@@ -305,20 +305,10 @@ print(qualdata.shape)
 # Building degree 2 polynomial for vel
 models = {"TN":1,"TP":1,"VEL":2}
 
-for something in models:
-    print(something)
-
-
-
-
-
-
-
-degrees = range(1,5)
-for var in continuous:
+for var in models:
     print("\n-----------------------------------")
     print("Building model for ",var)
-    # Get our predictor variables for this model
+    deg = models[var]
     predictors = continuous.copy()
     predictors.remove(var)
     
@@ -328,10 +318,10 @@ for var in continuous:
     # Good idea to standardize predictor attributes - assumes each variable has a decently normal distribution
     scaler = RobustScaler().fit(X)
     X_standard = scaler.transform(X)
-    
+
     # Save the scaler for this model
-    os.mkdir("Regression Models\\"+var)
-    path = "Regression Models\\"+var+"\\"
+    os.mkdir("Regression Models\\"+var+"extra")
+    path = "Regression Models\\"+var+"extra\\"
     pickle.dump(scaler,open(path+"scaler.p", "wb" ))
     
     # Split data into training and test sets
@@ -342,38 +332,15 @@ for var in continuous:
     pickle.dump(X_test,open(path+"X_test.p","wb"))
     pickle.dump(y_train,open(path+"y_train.p","wb"))
     pickle.dump(y_test,open(path+"y_test.p","wb"))
-
-
     
-    
-    valid_err = np.zeros(len(degrees))
-
-    print('      CV Validation Error')
-    for idx, d in enumerate(degrees):
-        poly = PolynomialFeatures(d)
-        poly.fit(X_train)
-        lm = LinearRegression(fit_intercept=False)
-        
-        # Instead of fitting the model to the full training data, we'll use the cross_val_score function
-        # in sklearn to do 5-fold cross-validation when fitting.
-        scores = cross_val_score(lm, poly.transform(X_train), y_train, cv=5, scoring='neg_mean_squared_error')
-        
-        # scores is an array with k computed validation errors on the left-out folds
-        # We average them together (and negate) to get a single score
-        valid_err[idx] = -1 * np.mean(scores)
-     
-        print(f'd={d:2d}: {valid_err[idx]:15.4f}')
-        
-    best_d = degrees[np.argmin(valid_err)]
-    print(f'Degree {best_d} polynomial has best cross-validation score')
     
     # Finally, we build the model, fit it to the full training data, and
     # estimate its out-of-sample performance by applying it to the test set
-    best_poly = PolynomialFeatures(best_d)
+    best_poly = PolynomialFeatures(deg)
     best_lm = LinearRegression(fit_intercept=False)
     best_lm.fit(best_poly.fit_transform(X_train), y_train)
     
-    pickle.dump(best_lm,open(path+"best_model.p","wb"))
+    pickle.dump(best_lm,open(path+"best_model_deg"+str(deg)+".p","wb"))
     pickle.dump(best_poly,open(path+"best_poly.p","wb"))
 
     
@@ -381,42 +348,116 @@ for var in continuous:
     MSE = np.mean((y_test - best_lm.predict(best_poly.transform(X_test))) ** 2)
     RMSE = np.sqrt(MSE)
     MAE = np.mean(abs(y_test - best_lm.predict(best_poly.transform(X_test))))
-    print(f'Degree {best_d} polynomial has RMSE = {RMSE:.5f}')
-    print(f'Degree {best_d} polynomial has MAE = {MAE:.5f}')
+    print(f'Degree {deg} polynomial has RMSE = {RMSE:.5f}')
+    print(f'Degree {deg} polynomial has MAE = {MAE:.5f}')
 
 
-print("\n\nTesting by year, by season spatial interpolation")
-for var in continuous:
-    print("\n-----------------------------------")
-    print("Testing ",var)
-    # Filter by locations that we already have for this variable
-    water_test = water_data[water_data[var].notna()]
-    water_test_interpolated = linear_interpolate(water_test,[var],testing=True)
+
+
+
+# degrees = range(1,5)
+# for var in continuous:
+#     print("\n-----------------------------------")
+#     print("Building model for ",var)
+#     # Get our predictor variables for this model
+#     predictors = continuous.copy()
+#     predictors.remove(var)
     
-    # Save the interpolated dataset
-    path = "Interpolation_analysis_datasets\\"+var
-    pickle.dump(water_test_interpolated,open(path+"_interpolated.p","wb"))
+#     X = np.array(qualdata[predictors])
+#     y = np.array(qualdata[var])
+    
+#     # Good idea to standardize predictor attributes - assumes each variable has a decently normal distribution
+#     scaler = RobustScaler().fit(X)
+#     X_standard = scaler.transform(X)
+    
+#     # Save the scaler for this model
+#     os.mkdir("Regression Models\\"+var)
+#     path = "Regression Models\\"+var+"\\"
+#     pickle.dump(scaler,open(path+"scaler.p", "wb" ))
+    
+#     # Split data into training and test sets
+#     X_train, X_test, y_train, y_test = train_test_split(X_standard, y, train_size=0.8)
+    
+#     # Save train and test sets
+#     pickle.dump(X_train,open(path+"X_train.p","wb"))
+#     pickle.dump(X_test,open(path+"X_test.p","wb"))
+#     pickle.dump(y_train,open(path+"y_train.p","wb"))
+#     pickle.dump(y_test,open(path+"y_test.p","wb"))
+
+
     
     
-    # Get name of predicted column
-    newcol = "Predicted"+var
+#     valid_err = np.zeros(len(degrees))
+
+#     print('      CV Validation Error')
+#     for idx, d in enumerate(degrees):
+#         poly = PolynomialFeatures(d)
+#         poly.fit(X_train)
+#         lm = LinearRegression(fit_intercept=False)
+        
+#         # Instead of fitting the model to the full training data, we'll use the cross_val_score function
+#         # in sklearn to do 5-fold cross-validation when fitting.
+#         scores = cross_val_score(lm, poly.transform(X_train), y_train, cv=5, scoring='neg_mean_squared_error')
+        
+#         # scores is an array with k computed validation errors on the left-out folds
+#         # We average them together (and negate) to get a single score
+#         valid_err[idx] = -1 * np.mean(scores)
+     
+#         print(f'd={d:2d}: {valid_err[idx]:15.4f}')
+        
+#     best_d = degrees[np.argmin(valid_err)]
+#     print(f'Degree {best_d} polynomial has best cross-validation score')
     
-    MAE = sklearn.metrics.mean_absolute_error(water_test_interpolated[var],water_test_interpolated[newcol])
-    RMSE = sklearn.metrics.mean_squared_error(water_test_interpolated[var],water_test_interpolated[newcol],squared=False)
-    print(f"The MAE for {var} is {MAE:8f}")
-    print(f"The RMSE for {var} is {RMSE:8f}")
+#     # Finally, we build the model, fit it to the full training data, and
+#     # estimate its out-of-sample performance by applying it to the test set
+#     best_poly = PolynomialFeatures(best_d)
+#     best_lm = LinearRegression(fit_intercept=False)
+#     best_lm.fit(best_poly.fit_transform(X_train), y_train)
     
-    # Make error column names
-    error_col = var+" error"
-    squared_error_col = var+" squared error"
-    water_test_interpolated[error_col] = round(abs(water_test_interpolated[var] - water_test_interpolated[newcol]),6)
-    water_test_interpolated[squared_error_col] = round((water_test_interpolated[var] - water_test_interpolated[newcol])**2,6)
-    print(water_test_interpolated[error_col].describe())
-    print(water_test_interpolated[squared_error_col].describe())
+#     pickle.dump(best_lm,open(path+"best_model.p","wb"))
+#     pickle.dump(best_poly,open(path+"best_poly.p","wb"))
+
+    
+#     # Estimate performance on test set:
+#     MSE = np.mean((y_test - best_lm.predict(best_poly.transform(X_test))) ** 2)
+#     RMSE = np.sqrt(MSE)
+#     MAE = np.mean(abs(y_test - best_lm.predict(best_poly.transform(X_test))))
+#     print(f'Degree {best_d} polynomial has RMSE = {RMSE:.5f}')
+#     print(f'Degree {best_d} polynomial has MAE = {MAE:.5f}')
+
+
+# print("\n\nTesting by year, by season spatial interpolation")
+# for var in continuous:
+#     print("\n-----------------------------------")
+#     print("Testing ",var)
+#     # Filter by locations that we already have for this variable
+#     water_test = water_data[water_data[var].notna()]
+#     water_test_interpolated = linear_interpolate(water_test,[var],testing=True)
+    
+#     # Save the interpolated dataset
+#     path = "Interpolation_analysis_datasets\\"+var
+#     pickle.dump(water_test_interpolated,open(path+"_interpolated.p","wb"))
+    
+    
+#     # Get name of predicted column
+#     newcol = "Predicted"+var
+    
+#     MAE = sklearn.metrics.mean_absolute_error(water_test_interpolated[var],water_test_interpolated[newcol])
+#     RMSE = sklearn.metrics.mean_squared_error(water_test_interpolated[var],water_test_interpolated[newcol],squared=False)
+#     print(f"The MAE for {var} is {MAE:8f}")
+#     print(f"The RMSE for {var} is {RMSE:8f}")
+    
+#     # Make error column names
+#     error_col = var+" error"
+#     squared_error_col = var+" squared error"
+#     water_test_interpolated[error_col] = round(abs(water_test_interpolated[var] - water_test_interpolated[newcol]),6)
+#     water_test_interpolated[squared_error_col] = round((water_test_interpolated[var] - water_test_interpolated[newcol])**2,6)
+#     print(water_test_interpolated[error_col].describe())
+#     print(water_test_interpolated[squared_error_col].describe())
     
 
 
-print(f"Entire analysis took {(time.time()-global_start)/60} minutes")
+# print(f"Entire analysis took {(time.time()-global_start)/60} minutes")
 
     
 
