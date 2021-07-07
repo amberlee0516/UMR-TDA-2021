@@ -299,6 +299,21 @@ print("Filtering out colums that we dont need")
 qualdata.drop(qualdata.columns.difference(continuous), 1, inplace=True)
 print(qualdata.shape)
 # The range of degree polynomials we will test for
+
+
+# Building degree 1 polynomial for TP and TN
+# Building degree 2 polynomial for vel
+models = {"TN":1,"TP":1,"VEL":2}
+
+for something in models:
+    print(something)
+
+
+
+
+
+
+
 degrees = range(1,5)
 for var in continuous:
     print("\n-----------------------------------")
