@@ -1,0 +1,415 @@
+Now adding a year column
+Now adding a month column
+Now adding a season column
+
+ Water data
+Index(['SHEETBAR', 'DATE', 'LATITUDE', 'LONGITUDE', 'FLDNUM', 'STRATUM',
+       'LOCATCD', 'TN', 'TP', 'TEMP', 'DO', 'TURB', 'COND', 'VEL', 'SS', 'WDP',
+       'CHLcal', 'SECCHI', 'YEAR', 'MONTH', 'SEASON'],
+      dtype='object')
+(82481, 21)
+Testing multivariate polynomial interpolation, using every other variable as a predictor besides target variable
+Filtering out all rows with missing data
+(20099, 21)
+Filtering out colums that we dont need
+(20099, 11)
+
+-----------------------------------
+Building model for  TN
+      CV Validation Error
+d= 1:          2.7985
+d= 2:          2.7135
+d= 3:         12.1579
+d= 4:       9643.9146
+Degree 2 polynomial has best cross-validation score
+Degree 2 polynomial has RMSE = 1.08040
+Degree 2 polynomial has MAE = 0.78370
+
+-----------------------------------
+Building model for  TP
+      CV Validation Error
+d= 1:          0.0211
+d= 2:          0.0177
+d= 3:          0.0971
+d= 4:        226.9721
+Degree 2 polynomial has best cross-validation score
+Degree 2 polynomial has RMSE = 0.25162
+Degree 2 polynomial has MAE = 0.05892
+
+-----------------------------------
+Building model for  TEMP
+      CV Validation Error
+d= 1:         49.3203
+d= 2:         66.0426
+d= 3:       1720.1303
+d= 4:     778359.7244
+Degree 1 polynomial has best cross-validation score
+Degree 1 polynomial has RMSE = 6.97526
+Degree 1 polynomial has MAE = 5.27887
+
+-----------------------------------
+Building model for  DO
+      CV Validation Error
+d= 1:          6.5140
+d= 2:         13.9763
+d= 3:       3425.7236
+d= 4:     786356.3133
+Degree 1 polynomial has best cross-validation score
+Degree 1 polynomial has RMSE = 2.68180
+Degree 1 polynomial has MAE = 1.65306
+
+-----------------------------------
+Building model for  TURB
+      CV Validation Error
+d= 1:        437.1387
+d= 2:        389.1711
+d= 3:      25770.0201
+d= 4:  140509290.9540
+Degree 2 polynomial has best cross-validation score
+Degree 2 polynomial has RMSE = 17.63189
+Degree 2 polynomial has MAE = 7.03149
+
+-----------------------------------
+Building model for  COND
+      CV Validation Error
+d= 1:      15627.4392
+d= 2:      47653.2819
+d= 3:  134936798.0550
+d= 4: 418718620946.8188
+Degree 1 polynomial has best cross-validation score
+Degree 1 polynomial has RMSE = 116.34716
+Degree 1 polynomial has MAE = 83.16236
+
+-----------------------------------
+Building model for  VEL
+      CV Validation Error
+d= 1:          0.1058
+d= 2:          1.9052
+d= 3:        375.4693
+d= 4:      93330.9888
+Degree 1 polynomial has best cross-validation score
+Degree 1 polynomial has RMSE = 0.32181
+Degree 1 polynomial has MAE = 0.17519
+
+-----------------------------------
+Building model for  SS
+      CV Validation Error
+d= 1:        642.6503
+d= 2:        538.8644
+d= 3:       1426.2244
+d= 4:     803900.7402
+Degree 2 polynomial has best cross-validation score
+Degree 2 polynomial has RMSE = 55.76195
+Degree 2 polynomial has MAE = 9.75799
+
+-----------------------------------
+Building model for  WDP
+      CV Validation Error
+d= 1:          2.9004
+d= 2:          2.4632
+d= 3:        377.0905
+d= 4:   82153539.6298
+Degree 2 polynomial has best cross-validation score
+Degree 2 polynomial has RMSE = 1.56676
+Degree 2 polynomial has MAE = 1.05213
+
+-----------------------------------
+Building model for  CHLcal
+      CV Validation Error
+d= 1:        648.9562
+d= 2:        548.6134
+d= 3:    5344149.6172
+d= 4: 14030397614.0563
+Degree 2 polynomial has best cross-validation score
+Degree 2 polynomial has RMSE = 22.48766
+Degree 2 polynomial has MAE = 13.17594
+
+-----------------------------------
+Building model for  SECCHI
+      CV Validation Error
+d= 1:        962.9106
+d= 2:       1718.8216
+d= 3:     143337.9313
+d= 4:   47873897.7530
+Degree 1 polynomial has best cross-validation score
+Degree 1 polynomial has RMSE = 29.73406
+Degree 1 polynomial has MAE = 21.40948
+
+
+Testing by year, by season spatial interpolation
+
+-----------------------------------
+Testing  TN
+Building a new dataframe with predicted values
+Interpolating took 8.568687311808269 minutes
+The MAE for TN is 0.426358
+The RMSE for TN is 1.935663
+count    32188.000000
+mean         0.426358
+std          1.888152
+min          0.000000
+25%          0.072105
+50%          0.183490
+75%          0.458081
+max        183.689225
+Name: TN error, dtype: float64
+count    32188.000000
+mean         3.746789
+std        270.945832
+min          0.000000
+25%          0.005199
+50%          0.033669
+75%          0.209839
+max      33741.731360
+Name: TN squared error, dtype: float64
+
+-----------------------------------
+Testing  TP
+Building a new dataframe with predicted values
+Interpolating took 8.445442688465118 minutes
+The MAE for TP is 0.047077
+The RMSE for TP is 0.147211
+count    31450.000000
+mean         0.047077
+std          0.139483
+min          0.000000
+25%          0.006641
+50%          0.017500
+75%          0.044224
+max          6.907558
+Name: TP error, dtype: float64
+count    31450.000000
+mean         0.021671
+std          0.468229
+min          0.000000
+25%          0.000044
+50%          0.000306
+75%          0.001956
+max         47.714361
+Name: TP squared error, dtype: float64
+
+-----------------------------------
+Testing  TEMP
+Building a new dataframe with predicted values
+Interpolating took 50.03977547486623 minutes
+The MAE for TEMP is 0.519299
+The RMSE for TEMP is 1.051598
+count    82152.000000
+mean         0.519299
+std          0.914437
+min          0.000000
+25%          0.057948
+50%          0.200000
+75%          0.600000
+max         28.100319
+Name: TEMP error, dtype: float64
+count    82152.000000
+mean         1.105858
+std          8.272811
+min          0.000000
+25%          0.003358
+50%          0.040000
+75%          0.360000
+max        789.627930
+Name: TEMP squared error, dtype: float64
+
+-----------------------------------
+Testing  DO
+Building a new dataframe with predicted values
+Interpolating took 49.900626901785536 minutes
+The MAE for DO is 0.940800
+The RMSE for DO is 1.875885
+count    82017.000000
+mean         0.940800
+std          1.622921
+min          0.000000
+25%          0.100000
+50%          0.333022
+75%          1.004789
+max         20.965657
+Name: DO error, dtype: float64
+count    82017.000000
+mean         3.518945
+std         14.705937
+min          0.000000
+25%          0.010000
+50%          0.110904
+75%          1.009602
+max        439.558780
+Name: DO squared error, dtype: float64
+
+-----------------------------------
+Testing  TURB
+Building a new dataframe with predicted values
+Interpolating took 49.22001469930013 minutes
+The MAE for TURB is 9.852421
+The RMSE for TURB is 26.959329
+count    81683.000000
+mean         9.852421
+std         25.094679
+min          0.000000
+25%          1.000000
+50%          3.058302
+75%          8.923787
+max       1104.757359
+Name: TURB error, dtype: float64
+count    8.168300e+04
+mean     7.268054e+02
+std      9.474714e+03
+min      0.000000e+00
+25%      1.000000e+00
+50%      9.353209e+00
+75%      7.963398e+01
+max      1.220489e+06
+Name: TURB squared error, dtype: float64
+
+-----------------------------------
+Testing  COND
+Building a new dataframe with predicted values
+Interpolating took 49.5145281235377 minutes
+The MAE for COND is 22.054714
+The RMSE for COND is 54.191230
+count    82112.000000
+mean        22.054714
+std         49.500594
+min          0.000000
+25%          1.666666
+50%          6.065195
+75%         20.252574
+max       1614.926004
+Name: COND error, dtype: float64
+count    8.211200e+04
+mean     2.936689e+03
+std      2.474521e+04
+min      0.000000e+00
+25%      2.777777e+00
+50%      3.678659e+01
+75%      4.101667e+02
+max      2.607986e+06
+Name: COND squared error, dtype: float64
+
+-----------------------------------
+Testing  VEL
+Building a new dataframe with predicted values
+Interpolating took 27.184966393311818 minutes
+The MAE for VEL is 0.126955
+The RMSE for VEL is 0.233981
+count    56180.000000
+mean         0.126955
+std          0.196546
+min          0.000000
+25%          0.006484
+50%          0.056146
+75%          0.168589
+max          5.000000
+Name: VEL error, dtype: float64
+count    56180.000000
+mean         0.054747
+std          0.318662
+min          0.000000
+25%          0.000042
+50%          0.003152
+75%          0.028422
+max         25.000000
+Name: VEL squared error, dtype: float64
+
+-----------------------------------
+Testing  SS
+Building a new dataframe with predicted values
+Interpolating took 48.05572915474574 minutes
+The MAE for SS is 13.756810
+The RMSE for SS is 36.742736
+count    80040.000000
+mean        13.756810
+std         34.070417
+min          0.000000
+25%          1.371139
+50%          4.622127
+75%         13.290405
+max       2410.774702
+Name: SS error, dtype: float64
+count    8.004000e+04
+mean     1.350029e+03
+std      2.714118e+04
+min      0.000000e+00
+25%      1.880023e+00
+50%      2.136406e+01
+75%      1.766349e+02
+max      5.811835e+06
+Name: SS squared error, dtype: float64
+
+-----------------------------------
+Testing  WDP
+Building a new dataframe with predicted values
+Interpolating took 49.62775238752365 minutes
+The MAE for WDP is 1.520872
+The RMSE for WDP is 2.377150
+count    81091.000000
+mean         1.520872
+std          1.826974
+min          0.000000
+25%          0.252873
+50%          0.847317
+75%          2.168798
+max         33.509167
+Name: WDP error, dtype: float64
+count    81091.000000
+mean         5.650843
+std         15.828823
+min          0.000000
+25%          0.063945
+50%          0.717947
+75%          4.703685
+max       1122.864292
+Name: WDP squared error, dtype: float64
+
+-----------------------------------
+Testing  CHLcal
+Building a new dataframe with predicted values
+Interpolating took 48.72632904847463 minutes
+The MAE for CHLcal is 7.882067
+The RMSE for CHLcal is 19.464878
+count    81091.000000
+mean         7.882067
+std         17.797708
+min          0.000000
+25%          0.737795
+50%          2.369221
+75%          7.399992
+max        642.601136
+Name: CHLcal error, dtype: float64
+count     81091.000000
+mean        378.881495
+std        4215.258292
+min           0.000000
+25%           0.544341
+50%           5.613207
+75%          54.759875
+max      412936.220171
+Name: CHLcal squared error, dtype: float64
+
+-----------------------------------
+Testing  SECCHI
+Building a new dataframe with predicted values
+Interpolating took 48.33118900855382 minutes
+The MAE for SECCHI is 11.873889
+The RMSE for SECCHI is 23.004590
+count    80664.000000
+mean        11.873889
+std         19.703470
+min          0.000000
+25%          1.475053
+50%          4.574631
+75%         13.217357
+max        395.396190
+Name: SECCHI error, dtype: float64
+count     80664.000000
+mean        529.211175
+std        2238.609283
+min           0.000000
+25%           2.175781
+50%          20.927248
+75%         174.698535
+max      156338.146818
+Name: SECCHI squared error, dtype: float64
+Entire analysis took 438.8594580014547 minutes

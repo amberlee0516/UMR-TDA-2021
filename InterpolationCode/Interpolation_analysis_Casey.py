@@ -14,8 +14,10 @@ Interpolation methods used here: Spatial - by year, by timecode
 """
 import pandas as pd
 import numpy as np
+import os
 from geopy import distance
 import time
+import pickle
 from sklearn.model_selection import cross_val_score,train_test_split
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import RobustScaler,PolynomialFeatures
@@ -312,8 +314,20 @@ for var in continuous:
     scaler = RobustScaler().fit(X)
     X_standard = scaler.transform(X)
     
+    # Save the scaler for this model
+    os.mkdir("Regression Models\\"+var)
+    path = "Regression Models\\"+var+"\\"
+    pickle.dump(scaler,open(path+"scaler.p", "wb" ))
+    
     # Split data into training and test sets
     X_train, X_test, y_train, y_test = train_test_split(X_standard, y, train_size=0.8)
+    
+    # Save train and test sets
+    pickle.dump(X_train,open(path+"X_train.p","wb"))
+    pickle.dump(X_test,open(path+"X_test.p","wb"))
+    pickle.dump(y_train,open(path+"y_train.p","wb"))
+    pickle.dump(y_test,open(path+"y_test.p","wb"))
+
 
     
     
@@ -344,6 +358,10 @@ for var in continuous:
     best_lm = LinearRegression(fit_intercept=False)
     best_lm.fit(best_poly.fit_transform(X_train), y_train)
     
+    pickle.dump(best_lm,open(path+"best_model.p","wb"))
+    pickle.dump(best_poly,open(path+"best_poly.p","wb"))
+
+    
     # Estimate performance on test set:
     MSE = np.mean((y_test - best_lm.predict(best_poly.transform(X_test))) ** 2)
     RMSE = np.sqrt(MSE)
@@ -359,6 +377,11 @@ for var in continuous:
     # Filter by locations that we already have for this variable
     water_test = water_data[water_data[var].notna()]
     water_test_interpolated = linear_interpolate(water_test,[var],testing=True)
+    
+    # Save the interpolated dataset
+    path = "Interpolation_analysis_datasets\\"+var
+    pickle.dump(water_test_interpolated,open(path+"_interpolated.p","wb"))
+    
     
     # Get name of predicted column
     newcol = "Predicted"+var
