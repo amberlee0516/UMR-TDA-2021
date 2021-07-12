@@ -22,7 +22,7 @@ library(tidyverse)
 library(lubridate)    # date types
 library(kableExtra)   # presenting tables
 library(rsample)      # data splitting 
-library(randomForest) # basic implementation
+# library(randomForest) # basic implementation
 library(ranger)       # a faster implementation of randomForest
 ```
 
@@ -32,13 +32,14 @@ library(ranger)       # a faster implementation of randomForest
 water20 <- read.csv("../../LTRM data/water_data_qfneg.csv", header = TRUE)
 ```
 
+
 ### Data cleaning
 
-* Add year and season variable, where year is categorical and season is a factor variable
+* Add year and season variable, where year and season are both factor variables
 
-* Change `FLDNUM` to be categorical (character)
+* Change `FLDNUM` and `STRATUM` to be factor variables
 
-* Remove latitude, longitude, and date from building RF
+* Remove sheetbar, date, location code, latitude, and longitude,  from building RF
 
 ```{r}
 
@@ -47,6 +48,7 @@ cleaning_for_forests <- function(df){
   
   df <- df %>%
     mutate(quarter = as.factor(quarter),
+           year = as.factor(year),
            FLDNUM = case_when(FLDNUM == 1 ~ "Lake City, MN", 
                               FLDNUM == 2 ~ "Onalaska, WI",
                               FLDNUM == 3 ~ "Bellevue, IA",
@@ -54,6 +56,14 @@ cleaning_for_forests <- function(df){
                               FLDNUM == 5 ~ "Jackson, MO",
                               FLDNUM == 6 ~ "Havana, IL"),
            FLDNUM = as.factor(FLDNUM),
+           STRATUM = case_when(STRATUM == 1 ~ "Main channel",
+                               STRATUM == 2 ~ "Side channel",
+                               STRATUM == 3 ~ "Backwater area contiguous to the main channel",
+                               STRATUM == 4 ~ "Lake Pepin or Swan Lake",
+                               STRATUM == 5 ~ "Impounded",
+                               STRATUM == 6 ~ "Isolated",
+                               STRATUM == 9 ~ "Unexploded Ordinance Area - Pool 13",
+                               TRUE ~ as.character(STRATUM)),
            STRATUM = as.factor(STRATUM),
            TN = as.numeric(TN),
            TP = as.numeric(TP),
@@ -72,10 +82,10 @@ cleaning_for_forests <- function(df){
 }
 
 water20 <- water20 %>%
-  filter(STRATUM != 9) %>% # 9 = Unexploded Ordinance Area - Pool 13???
   mutate(nice_date = mdy(DATE),
          year = year(nice_date),
-         quarter = quarter(nice_date, fiscal_start = 3)) %>%
+         quarter = quarter(nice_date, fiscal_start = 3)) %>% 
+  # year and quarter become factors later
   cleaning_for_forests() %>% 
   select(-SHEETBAR, -nice_date, -DATE, -LOCATCD, -LATITUDE, -LONGITUDE) 
 
@@ -103,7 +113,9 @@ From the [UC Riverside Programming Guide](https://uc-r.github.io/random_forests)
 
 [Random forests do not handle missing values in the predictor values because the bagged trees *do not* use surrogates. As an ensemble method, random forests need all the variables.](https://stats.stackexchange.com/questions/98953/why-doesnt-random-forest-handle-missing-values-in-predictors)
 
-One solution for missing values in the predictors is to impute those missing values with the median of the variable. This is done by setting `na.action = na.roughfix` and is described more [in this post](https://stackoverflow.com/questions/8370455/how-to-use-random-forests-in-r-with-missing-values).
+One solution for missing values in the predictors (for the `randomForests` package) is to impute those missing values with the median of the variable. This is done by setting `na.action = na.roughfix` and is described more [in this post](https://stackoverflow.com/questions/8370455/how-to-use-random-forests-in-r-with-missing-values). 
+
+Since the `ranger` package does not have a `na.action` parameter, I use median/mode imputation the training and test sets manually.
 
 ## Random forests questions, July 7
 
@@ -144,12 +156,12 @@ These are the functions that will be used to impute the missing predictor variab
 # names(water20)[sapply(water20, function(x) sum(!is.na(x)) == 82481)]
 # "FLDNUM"  "STRATUM" "year"    "quarter"
 
+
 replace_median_mode <- function(var_str, dataset, response_var){
   # for imputing test data with median/mode
   
   # iterate through each variable name var_str with sapply to
   # replace every variable except for response_var (no need to impute)
-  
   
   # column of the dataset
   data_col <- eval(parse(text = paste("dataset$", var_str, sep = "")))
@@ -178,18 +190,22 @@ replace_median_mode <- function(var_str, dataset, response_var){
   
   data_col[is.na(data_col)] <- imputation
   
+  #   print("running replace_median_mode")
+  print(paste(var_str, "imputation is", as.character(imputation)))
+  
   if (sum(!is.na(data_col)) == length(data_col)){
 
     return(data_col)
+    
   } else return("error in imputing NAs")
   
 }
 
-impute_test_data <- function(df, response_var, df_train){
+impute_data <- function(df, response_var, df_train){
   
   df <- data.frame(sapply(names(df), replace_median_mode, df, response_var)) %>%
     cleaning_for_forests()
-  
+
   # trick to fix incompatible types for random forest
   # source: https://stackoverflow.com/questions/24829674/r-random-forest-error-type-of-predictors-in-new-data-do-not-match
 
@@ -225,8 +241,8 @@ add_errors <- function(error_df, response_var, test_data){
            abs_residual = abs(residual))
   
   n <- round(dim(test_data)[1], 3)
-  rsme <- round(sqrt(sum(test_data$residual_sq)/n), 3)
-  mae <- round(sum(test_data$abs_residual)/n, 3)
+  rsme <- round(sqrt(sum(test_data$residual_sq)/n), 5)
+  mae <- round(sum(test_data$abs_residual)/n, 5)
   
   return(rbind(error_df, data.frame("Response" = response_var,
                                     "RSME" = rsme,
@@ -249,12 +265,12 @@ add_distribution <- function(distribution_df, response_var, test_data){
   
   return(rbind(distribution_df, 
                data.frame("Response" = response_var,
-                          "Mean" = round(mean(predictions), 3),
-                          "Minimum" = round(min(predictions), 3),
-                          "Quartile 1" = round(quantile(predictions, 0.25), 3),
-                          "Median" = round(median(predictions), 3),
-                          "Quartile 3" = round(quantile(predictions, 0.50), 3),
-                          "Maximum" = round(max(predictions), 3))))
+                          "Mean" = round(mean(predictions), 5),
+                          "Minimum" = round(min(predictions), 5),
+                          "Quartile 1" = round(quantile(predictions, 0.25), 5),
+                          "Median" = round(median(predictions), 5),
+                          "Quartile 3" = round(quantile(predictions, 0.50), 5),
+                          "Maximum" = round(max(predictions), 5))))
 }
 ```
 
@@ -264,7 +280,7 @@ add_distribution <- function(distribution_df, response_var, test_data){
 ## 1. 80/20 split
 
 ```{r}
-set.seed(4774)
+set.seed(7447)
 
 # train and test RF on dataset with full TP values
 fullTP <- water20 %>% filter(!is.na(TP)) 
@@ -272,21 +288,24 @@ fullTP <- water20 %>% filter(!is.na(TP))
 # these splits will have missing values in the predictor
 TP_split <- initial_split(fullTP, prop = 0.8)
 TP_train <- training(TP_split)
+print("TP_train median/mode imputation")
+TP_train <- impute_data(TP_train, "TP", TP_train)
 TP_test <- testing(TP_split)
-TP_test <- impute_test_data(TP_test, "TP", TP_train)
+print("TP_test median/mode imputation")
+TP_test <- impute_data(TP_test, "TP", TP_train)
+
 
 ```
 
-
-
 ## 2. Fit the model 
+
+Using `ranger` instead of `randomForest.`
 
 ```{r}
 
-TP_rf <- randomForest(
+TP_rf <- ranger(
   formula = TP ~ .,
-  data    = TP_train,
-  na.action = na.roughfix # impute missing predictor values with the median
+  data    = TP_train
 )
 
 ```
@@ -294,15 +313,7 @@ TP_rf <- randomForest(
 ```{r}
 TP_rf
 ```
-
-```{r, echo = FALSE}
-plot(sqrt(TP_rf$mse), type = "l", 
-     main = "Predicting Total Phosphorous",
-     xlab = "Number of trees",
-     ylab = "OOB RMSE")
-```
-
-For `TP`, a RF with `r which.min(TP_rf$mse)` trees minimizes the mean squared error.
+On the training set, the RMSE is `r sqrt(mean((TP_rf$predictions - TP_train$TP)^2))` and the MAE is `r mean(abs(TP_rf$predictions - TP_train$TP))`.
 
 ## Evaluate
 
@@ -310,13 +321,10 @@ I run the same `TP_rf` model on the test data.
 
 ```{r}
 
-# predict.all gives $aggregate and $individual 
-TP_pred_all <- predict(TP_rf, newdata = TP_test, predict.all = TRUE)
-
 # https://gist.github.com/DexGroves/d6c055addf870b30d678862cc0fa8a88
 # sapply(1:length(TP_pred_all$individual), function(n) mean(TP_pred_all$individual[1:n]))
 
-TP_test$predicted <- TP_pred_all$aggregate
+TP_test$predicted <- predict(TP_rf, data = TP_test)$predictions
 
 error_df <- add_errors(error_df, "TP", TP_test)
 distribution_df <- add_distribution(distribution_df, "TP", TP_test)
@@ -335,8 +343,8 @@ ggplot(data = rbind(data.frame(TP = c(TP_test$TP), TP_type = "actual"),
   geom_boxplot(aes(x = TP, y = TP_type, group = TP_type)) +
   labs(title = "Distribution of predicted and actual TP values")
 
-ggplot(data = TP_test, aes(x = residual)) +
-  geom_histogram() +
+ggplot(data = TP_test, aes(x = TP - predicted)) +
+  geom_histogram(bins = 30) +
   labs(title = "Distribution of TP residuals", x = "Actual - predicted")
 
 ```
@@ -347,13 +355,17 @@ ggplot(data = TP_test, aes(x = residual)) +
 ## 1. 80/20 split
 
 ```{r}
-set.seed(4774)
+set.seed(7447)
 
 fullTN <- water20 %>% filter(!is.na(TN)) 
 TN_split <- initial_split(fullTN, prop = 0.8)
 TN_train <- training(TN_split)
+print("TN_train median/mode imputation")
+TN_train <- impute_data(TN_train, "TN", TN_train)
 TN_test <- testing(TN_split)
-TN_test <- impute_test_data(TN_test, "TN", TN_train)
+print("TN_test median/mode imputation")
+TN_test <- impute_data(TN_test, "TN", TN_train)
+
 ```
 
 ## 2. Fit the model 
@@ -361,10 +373,9 @@ TN_test <- impute_test_data(TN_test, "TN", TN_train)
 ```{r}
 
 # default RF model
-TN_rf <- randomForest(
+TN_rf <- ranger(
   formula = TN ~ .,
-  data    = TN_train,
-  na.action = na.roughfix
+  data    = TN_train
 )
 
 ```
@@ -373,14 +384,8 @@ TN_rf <- randomForest(
 TN_rf
 ```
 
-```{r, echo = FALSE}
-plot(sqrt(TN_rf$mse), type = "l", 
-     main = "Predicting Total Nitrogen",
-     xlab = "Number of trees",
-     ylab = "OOB RMSE")
-```
+On the training set, the RMSE is `r sqrt(mean((TN_rf$predictions - TN_train$TN)^2))` and the MAE is `r mean(abs(TN_rf$predictions - TN_train$TN))`.
 
-For `TN`, a RF with `r which.min(TN_rf$mse)` trees minimizes the mean squared error.
 
 ## Evaluate
 
@@ -388,10 +393,7 @@ I run the same `TN_rf` model on the test data.
 
 ```{r}
 
-# predict.all gives $aggregate and $individual 
-TN_pred_all <- predict(TN_rf, newdata = TN_test, predict.all = TRUE)
-
-TN_test$predicted <- TN_pred_all$aggregate
+TN_test$predicted <- predict(TN_rf, data = TN_test)$predictions
 
 error_df <- add_errors(error_df, "TN", TN_test)
 distribution_df <- add_distribution(distribution_df, "TN", TN_test)
@@ -410,7 +412,7 @@ ggplot(data = rbind(data.frame(TN = c(TN_test$TN), TN_type = "actual"),
   geom_boxplot(aes(x = TN, y = TN_type, group = TN_type)) +
   labs(title = "Distribution of predicted and actual TN values")
 
-ggplot(data = TN_test, aes(x = residual)) +
+ggplot(data = TN_test, aes(x = TN - predicted)) +
   geom_histogram() +
   labs(title = "Distribution of TN residuals", x = "Actual - predicted")
 
@@ -421,13 +423,17 @@ ggplot(data = TN_test, aes(x = residual)) +
 ## 1. 80/20 split
 
 ```{r}
-set.seed(4774)
+set.seed(7447)
 
 fullVEL <- water20 %>% filter(!is.na(VEL)) 
 VEL_split <- initial_split(fullVEL, prop = 0.8)
 VEL_train <- training(VEL_split)
+print("VEL_train median/mode imputation")
+VEL_train <- impute_data(VEL_train, "VEL", VEL_train)
 VEL_test <- testing(VEL_split)
-VEL_test <- impute_test_data(VEL_test, "VEL", VEL_train)
+print("VEL_test median/mode imputation")
+VEL_test <- impute_data(VEL_test, "VEL", VEL_train)
+
 ```
 
 ## 2. Fit the model 
@@ -435,10 +441,9 @@ VEL_test <- impute_test_data(VEL_test, "VEL", VEL_train)
 ```{r}
 
 # default RF model
-VEL_rf <- randomForest(
+VEL_rf <- ranger(
   formula = VEL ~ .,
-  data    = VEL_train,
-  na.action = na.roughfix
+  data    = VEL_train
 )
 
 ```
@@ -447,12 +452,8 @@ VEL_rf <- randomForest(
 VEL_rf
 ```
 
-```{r, echo = FALSE}
-plot(sqrt(VEL_rf$mse), type = "l", 
-     main = "Predicting Velocity",
-     xlab = "Number of trees",
-     ylab = "OOB RMSE")
-```
+
+On the training set, the RMSE is `r sqrt(mean((VEL_rf$predictions - VEL_train$VEL)^2))` and the MAE is `r mean(abs(VEL_rf$predictions - VEL_train$VEL))`.
 
 For `VEL`, a RF with `r which.min(VEL_rf$mse)` trees minimizes the mean squared error.
 
@@ -462,10 +463,7 @@ I run the same `VEL_rf` model on the test data.
 
 ```{r}
 
-# predict.all gives $aggregate and $individual 
-VEL_pred_all <- predict(VEL_rf, newdata = VEL_test, predict.all = TRUE)
-
-VEL_test$predicted <- VEL_pred_all$aggregate
+VEL_test$predicted <- predict(VEL_rf, data = VEL_test)$predictions
 
 error_df <- add_errors(error_df, "VEL", VEL_test)
 distribution_df <- add_distribution(distribution_df, "VEL", VEL_test)
@@ -484,7 +482,7 @@ ggplot(data = rbind(data.frame(VEL = c(VEL_test$VEL), VEL_type = "actual"),
   geom_boxplot(aes(x = VEL, y = VEL_type, group = VEL_type)) +
   labs(title = "Distribution of predicted and actual VEL values")
 
-ggplot(data = VEL_test, aes(x = residual)) +
+ggplot(data = VEL_test, aes(x = VEL - predicted)) +
   geom_histogram() +
   labs(title = "Distribution of VEL residuals", x = "Actual - predicted")
 
