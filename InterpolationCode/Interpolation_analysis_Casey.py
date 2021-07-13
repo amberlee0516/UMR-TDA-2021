@@ -29,8 +29,9 @@ pd.set_option('display.max_columns', None)
 # This class stores the latitude and longitude of a sample, and indicates 
 # if this location has the desired variable we are estimating
 class Location:
-    def __init__(self,latitude,longitude,hasv,ID,value):
+    def __init__(self,latitude,longitude,hasv,ID,value,SHEET):
         self.ID = ID
+        self.SHEET = SHEET
         self.latitude = latitude
         self.longitude = longitude
         self.hasv = hasv
@@ -70,7 +71,7 @@ def DistanceMatrix(dataframe,variable):
             hasv = False
         else:
             hasv = True
-        locations.append(Location(row["LATITUDE"],row["LONGITUDE"],hasv,row["LOCATCD"],row[variable]))
+        locations.append(Location(row["LATITUDE"],row["LONGITUDE"],hasv,row["LOCATCD"],row[variable],row["SHEETBAR"]))
         #indexes.append(index)
         
     matrix = pd.DataFrame(0,index=locations,columns=locations)
@@ -91,16 +92,16 @@ def changeVar(DM,dataframe,variable):
     locations = DM.index
     # loop through each location
     for i,loc in enumerate(locations):
-        ID = loc.ID
-        row = dataframe.loc[dataframe["LOCATCD"]==ID]
+        SHEET = loc.SHEET
+        row = dataframe.loc[dataframe["SHEETBAR"]==SHEET]
         #print(row)
         #print(row.shape)
         #print(row.loc[row.index[0],variable])
         #print(type(row[variable]))
         try:
-            assert(row.shape[0]==1), "Multiple rows with same LOCATCD"
+            assert(row.shape[0]==1), "Multiple rows with same SHEETBAR"
         except AssertionError as msg:
-            print(dataframe[dataframe["LOCATCD"].duplicated(keep=False)])
+            print(dataframe[dataframe["SHEETBAR"].duplicated(keep=False)])
             print(msg)
             
         # Pull value of desired variable
@@ -127,7 +128,7 @@ def getclosest(numclosest,distancematrix,location):
     # Get rid of locations that dont have the desired variable
     column.drop(doesnthavev,inplace = True)
     # Get rid of the location we are predicting for if it exists
-    column.drop(location,inplace = True)
+    column.drop(location,inplace = True,errors="ignore")
     #print(type(column))
     column.sort_values(inplace = True)
     
@@ -145,10 +146,10 @@ def makeDict(DM,numclosest,testing):
             # The list of tuples that contain location id, the distance, and the value for variable
             tuples = []
             for i,dist in enumerate(closest):
-                ID = closest.index[i].ID
+                SHEET = closest.index[i].SHEET
                 val = closest.index[i].value
-                tuples.append((ID,dist,val))
-            closestDict[loc.ID] = tuples
+                tuples.append((SHEET,dist,val))
+            closestDict[loc.SHEET] = tuples
     return closestDict
 
 def predict(tuples,numclosest = 2):
@@ -247,12 +248,12 @@ def linear_interpolate(data,missing_vars,numlocations = 2,testing = False,verbos
                         for index,row in curset.iterrows():
                             if pd.isnull(row[var]) or testing:
                                 try:
-                                    prediction = predict(Dict[row["LOCATCD"]])
+                                    prediction = predict(Dict[row["SHEETBAR"]])
                                     #print(curset.loc[index,newcolumn],prediction)
                                     curset.loc[index,newcolumn] = prediction
                                 except ZeroDivisionError:
-                                    print("Couldn't predict for ", str(row["LOCATCD"]))
-                                    print(Dict[row["LOCATCD"]])
+                                    print("Couldn't predict for ", str(row["SHEETBAR"]))
+                                    print(Dict[row["SHEETBAR"]])
                                     curset.loc[index,newcolumn] = None
                             else:
                                 curset.loc[index,newcolumn] = row[var]
@@ -286,70 +287,73 @@ print("Now adding a season column")
 water_data["SEASON"] = water_data["MONTH"]
 water_data = water_data.replace({"SEASON":seasons})
 
+
+print("Dropping TN outliers")
+water_data.drop([46795,46545,46727],axis=0,inplace=True)
 print("\n Water data")
 print(water_data.columns)
 print(water_data.shape)
 
 
-print("Testing multivariate polynomial interpolation, using every other variable as a predictor besides target variable")
-print("Filtering out all rows with missing data")
-qualdata = water_data.dropna(axis=0, how='any', thresh=None, subset=continuous, inplace=False).copy()
-print(qualdata.shape)
-print("Filtering out colums that we dont need")
-qualdata.drop(qualdata.columns.difference(continuous), 1, inplace=True)
-print(qualdata.shape)
+# print("Testing multivariate polynomial interpolation, using every other variable as a predictor besides target variable")
+# print("Filtering out all rows with missing data")
+# qualdata = water_data.dropna(axis=0, how='any', thresh=None, subset=continuous, inplace=False).copy()
+# print(qualdata.shape)
+# print("Filtering out colums that we dont need")
+# qualdata.drop(qualdata.columns.difference(continuous), 1, inplace=True)
+# print(qualdata.shape)
 # The range of degree polynomials we will test for
 
 
-# Building degree 1 polynomial for TP and TN
-# Building degree 2 polynomial for vel
-models = {"TN":1,"TP":1,"VEL":2}
+# # Building degree 1 polynomial for TP and TN
+# # Building degree 2 polynomial for vel
+# models = {"TN":1,"TP":1,"VEL":2}
 
-for var in models:
-    print("\n-----------------------------------")
-    print("Building model for ",var)
-    deg = models[var]
-    predictors = continuous.copy()
-    predictors.remove(var)
+# for var in models:
+#     print("\n-----------------------------------")
+#     print("Building model for ",var)
+#     deg = models[var]
+#     predictors = continuous.copy()
+#     predictors.remove(var)
     
-    X = np.array(qualdata[predictors])
-    y = np.array(qualdata[var])
+#     X = np.array(qualdata[predictors])
+#     y = np.array(qualdata[var])
     
-    # Good idea to standardize predictor attributes - assumes each variable has a decently normal distribution
-    scaler = RobustScaler().fit(X)
-    X_standard = scaler.transform(X)
+#     # Good idea to standardize predictor attributes - assumes each variable has a decently normal distribution
+#     scaler = RobustScaler().fit(X)
+#     X_standard = scaler.transform(X)
 
-    # Save the scaler for this model
-    os.mkdir("Regression Models\\"+var+"extra")
-    path = "Regression Models\\"+var+"extra\\"
-    pickle.dump(scaler,open(path+"scaler.p", "wb" ))
+#     # Save the scaler for this model
+#     os.mkdir("Regression Models\\"+var+"extra")
+#     path = "Regression Models\\"+var+"extra\\"
+#     pickle.dump(scaler,open(path+"scaler.p", "wb" ))
     
-    # Split data into training and test sets
-    X_train, X_test, y_train, y_test = train_test_split(X_standard, y, train_size=0.8)
+#     # Split data into training and test sets
+#     X_train, X_test, y_train, y_test = train_test_split(X_standard, y, train_size=0.8)
     
-    # Save train and test sets
-    pickle.dump(X_train,open(path+"X_train.p","wb"))
-    pickle.dump(X_test,open(path+"X_test.p","wb"))
-    pickle.dump(y_train,open(path+"y_train.p","wb"))
-    pickle.dump(y_test,open(path+"y_test.p","wb"))
+#     # Save train and test sets
+#     pickle.dump(X_train,open(path+"X_train.p","wb"))
+#     pickle.dump(X_test,open(path+"X_test.p","wb"))
+#     pickle.dump(y_train,open(path+"y_train.p","wb"))
+#     pickle.dump(y_test,open(path+"y_test.p","wb"))
     
     
-    # Finally, we build the model, fit it to the full training data, and
-    # estimate its out-of-sample performance by applying it to the test set
-    best_poly = PolynomialFeatures(deg)
-    best_lm = LinearRegression(fit_intercept=False)
-    best_lm.fit(best_poly.fit_transform(X_train), y_train)
+#     # Finally, we build the model, fit it to the full training data, and
+#     # estimate its out-of-sample performance by applying it to the test set
+#     best_poly = PolynomialFeatures(deg)
+#     best_lm = LinearRegression(fit_intercept=False)
+#     best_lm.fit(best_poly.fit_transform(X_train), y_train)
     
-    pickle.dump(best_lm,open(path+"best_model_deg"+str(deg)+".p","wb"))
-    pickle.dump(best_poly,open(path+"best_poly.p","wb"))
+#     pickle.dump(best_lm,open(path+"best_model_deg"+str(deg)+".p","wb"))
+#     pickle.dump(best_poly,open(path+"best_poly.p","wb"))
 
     
-    # Estimate performance on test set:
-    MSE = np.mean((y_test - best_lm.predict(best_poly.transform(X_test))) ** 2)
-    RMSE = np.sqrt(MSE)
-    MAE = np.mean(abs(y_test - best_lm.predict(best_poly.transform(X_test))))
-    print(f'Degree {deg} polynomial has RMSE = {RMSE:.5f}')
-    print(f'Degree {deg} polynomial has MAE = {MAE:.5f}')
+#     # Estimate performance on test set:
+#     MSE = np.mean((y_test - best_lm.predict(best_poly.transform(X_test))) ** 2)
+#     RMSE = np.sqrt(MSE)
+#     MAE = np.mean(abs(y_test - best_lm.predict(best_poly.transform(X_test))))
+#     print(f'Degree {deg} polynomial has RMSE = {RMSE:.5f}')
+#     print(f'Degree {deg} polynomial has MAE = {MAE:.5f}')
 
 
 
@@ -425,39 +429,39 @@ for var in models:
 #     print(f'Degree {best_d} polynomial has RMSE = {RMSE:.5f}')
 #     print(f'Degree {best_d} polynomial has MAE = {MAE:.5f}')
 
+variables = ["TN","TP","VEL"]
+print("\n\nTesting by year, by season spatial interpolation")
+for var in variables:
+    print("\n-----------------------------------")
+    print("Testing ",var)
+    # Filter by locations that we already have for this variable
+    water_test = water_data[water_data[var].notna()]
+    water_test_interpolated = linear_interpolate(water_test,[var],testing=True)
+    
+    # Save the interpolated dataset
+    path = "Interpolation_analysis_datasets\\"+var
+    #pickle.dump(water_test_interpolated,open(path+"_interpolated.p","wb"))
+    
+    
+    # Get name of predicted column
+    newcol = "Predicted"+var
+    
+    MAE = sklearn.metrics.mean_absolute_error(water_test_interpolated[var],water_test_interpolated[newcol])
+    RMSE = sklearn.metrics.mean_squared_error(water_test_interpolated[var],water_test_interpolated[newcol],squared=False)
+    print(f"The MAE for {var} is {MAE:8f}")
+    print(f"The RMSE for {var} is {RMSE:8f}")
+    
+    # Make error column names
+    error_col = var+" error"
+    squared_error_col = var+" squared error"
+    water_test_interpolated[error_col] = round(abs(water_test_interpolated[var] - water_test_interpolated[newcol]),6)
+    water_test_interpolated[squared_error_col] = round((water_test_interpolated[var] - water_test_interpolated[newcol])**2,6)
+    print(water_test_interpolated[error_col].describe())
+    print(water_test_interpolated[squared_error_col].describe())
+    
 
-# print("\n\nTesting by year, by season spatial interpolation")
-# for var in continuous:
-#     print("\n-----------------------------------")
-#     print("Testing ",var)
-#     # Filter by locations that we already have for this variable
-#     water_test = water_data[water_data[var].notna()]
-#     water_test_interpolated = linear_interpolate(water_test,[var],testing=True)
-    
-#     # Save the interpolated dataset
-#     path = "Interpolation_analysis_datasets\\"+var
-#     pickle.dump(water_test_interpolated,open(path+"_interpolated.p","wb"))
-    
-    
-#     # Get name of predicted column
-#     newcol = "Predicted"+var
-    
-#     MAE = sklearn.metrics.mean_absolute_error(water_test_interpolated[var],water_test_interpolated[newcol])
-#     RMSE = sklearn.metrics.mean_squared_error(water_test_interpolated[var],water_test_interpolated[newcol],squared=False)
-#     print(f"The MAE for {var} is {MAE:8f}")
-#     print(f"The RMSE for {var} is {RMSE:8f}")
-    
-#     # Make error column names
-#     error_col = var+" error"
-#     squared_error_col = var+" squared error"
-#     water_test_interpolated[error_col] = round(abs(water_test_interpolated[var] - water_test_interpolated[newcol]),6)
-#     water_test_interpolated[squared_error_col] = round((water_test_interpolated[var] - water_test_interpolated[newcol])**2,6)
-#     print(water_test_interpolated[error_col].describe())
-#     print(water_test_interpolated[squared_error_col].describe())
-    
 
-
-# print(f"Entire analysis took {(time.time()-global_start)/60} minutes")
+print(f"Entire analysis took {(time.time()-global_start)/60} minutes")
 
     
 
