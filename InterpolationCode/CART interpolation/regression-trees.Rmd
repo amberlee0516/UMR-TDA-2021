@@ -60,7 +60,7 @@ water_vars <- list("TP", "TN", "VEL") #, "TURB", "COND","WDP", "SECCHI", "CHLcal
 
 predictor_vars <- c("TP", "TN", "TURB", "COND", "VEL", "WDP", "season", "STRATUM", "FLDNUM", "CHLcal", "SS", "TEMP", "SECCHI", "DO", "year")
 
-rt_data <- water_data[predictor_vars]
+rt_data <- water_data[predictor_vars] # regression tree data
 
 ```
 
@@ -80,7 +80,7 @@ The MAE, RMSE, and summary stats for the regression tree models for interpolatin
 
 * make_trees: creates a regression tree to predict a target variable - saves the tree output       (#https://stackoverflow.com/questions/7500219/reading-rpart-input-parameters-from-a-text-variable)
 
-* rt_evalution: takes a target variable with a data and uses the three previous functions to        output a testing data with a predicted column for that variable
+* rt_evalution: takes a target variable with a data and uses the three previous functions to        output a testing data with a predicted column for that variable - incorporates the creation of a   train/test split
 
 * make_plots: makes an actual versus predicted scatter plot and box plots for each actual and       predicted column of the current target variable - will save both plots
 
@@ -95,7 +95,7 @@ rmna_rows <- function(target_var, df) {
 
 get_train_indices <- function(df) {
   sample_size = 0.80 * nrow(df)
-  set.seed(571)
+  set.seed(4321)
   train_indices <- sample(seq_len(nrow(df)), size = sample_size)
   
   return(train_indices)
@@ -155,6 +155,9 @@ make_plots <- function(data_test, target_actual, target_pred) {
       labs( y = target_pred, x = target_actual)
     ggsave(png_name)
     
+    # make a new data frame
+    
+    
     # box plot -TODO
     #png_name = paste(target_actual, "_boxplot.png", sep = "")
     #ggplot(data_test) + 
@@ -210,18 +213,22 @@ get_model_stats <- function(data_test, errorBool) {
 
 ```
 
+
 ```{r}
-water_var_preds <- lapply(water_vars, rt_evaluation, rt_data)
+water_var_preds <- lapply( water_vars, rt_evaluation, rt_data )
 water_var_errors <- lapply( water_var_preds, get_model_stats, TRUE )
 water_var_summary <- lapply( water_var_preds, get_model_stats, FALSE )
 
 # combine columns
 type <- c("MAE", "RMSE")
-TN <- water_var_errors[[2]]
+
+# Renames the columns of the error data frame
 TP <- water_var_errors[[1]]
+TN <- water_var_errors[[2]]
 VEL <- water_var_errors[[3]]
 model_errors <- data.frame( type, TP, TN, VEL)
 
+# Renames the columns of the summary stat data frame
 one <- water_var_summary[[1]]
 two <- water_var_summary[[2]]
 three <- water_var_summary[[3]]
