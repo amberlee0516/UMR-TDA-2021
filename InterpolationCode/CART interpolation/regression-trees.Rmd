@@ -64,6 +64,14 @@ rt_data <- water_data[predictor_vars] # regression tree data
 
 ```
 
+## Remove outliers
+
+For the purpose of interpolating, we will be removing three samples that are outliers for TN. These samples of TN values of 165.177, 149.712, and 187.429 and are more than 50 times the IQR. These points are effecting the accuracy of the model and will be excluded for interpolation only. They will be added back to the data for TDA.
+
+```{r}
+rt_data <- rt_data %>% filter(TN < 100 | is.na(TN))
+```
+
 ## Assumptions
 
 While there are missing values in all continuous variables, we will be begin by interpolating for only TP, TN, and VEL, the variables with the most missingness. We will be usin TP, TN, TURB, COND, VEL, WDP, season, year, STRATUM, FLDNUM, CHLcal, SS, TEMP, SECCHI, and DO as our predictor variables. We will use an 80/20 train-test split to create the model and test for its accuracy. The train and test data for the tree for each interpolated variable will be made from a subset of the entire cleaned UMR data set that has no missing values for the current target variable. 
@@ -72,7 +80,462 @@ After having created this models, we used the 1-SE rule to set the CP control me
 
 The MAE, RMSE, and summary stats for the regression tree models for interpolating TP, TN, VEL will be calculated using the test data.
 
+
+## Creating the model
+
+The creation of the model for each target variable (the variable we are attempting to interpolate) will involve the following process:
+
+  1. Create a subset of the entire data set that has a complete column of the variable we   are        currently estimating
+  2. Create a 80/20 train/test split of the data
+  3. Train a regression tree model to predict a target variable will all the other predictors
+  4. Test the regression model with the test data
+  5. Calculate the RMSE, MAE, and summary stats for the actual versus predicted values
+  6. Plot the actual vs. predicted scatter plots, boxplots, and histograms
+  
+We will run the model first using surrogates splits and then a second time using median imputation. 
+
+
+## Data imputation functions
+
+Written by Amber
+
+```{r}
+# which predictor variables have no missingness?
+# names(water20)[sapply(water20, function(x) sum(!is.na(x)) == 82481)]
+# "FLDNUM"  "STRATUM" "year"    "quarter"
+
+
+replace_median_mode <- function(var_str, dataset, response_var){
+  # for imputing test data with median/mode
+  
+  # iterate through each variable name var_str with sapply to
+  # replace every variable except for response_var (no need to impute)
+  
+  # column of the dataset
+  data_col <- eval(parse(text = paste("dataset$", var_str, sep = "")))
+
+  if (var_str %in% c(response_var, "FLDNUM",  "STRATUM", "year",  "quarter")){ 
+    # these other variables have no missingness
+    return(data_col) # don't impute the response variable
+  } 
+  
+  if (class(data_col) == "factor"){
+    # categorical imputation
+    # take the mode 
+    
+    counts_table <- table(data_col)
+    
+    # retrieve mode
+    imputation <- names(counts_table)[counts_table == max(counts_table)]
+    
+  } else if (class(data_col) %in% c("numeric", "integer")){
+    # continuous imputation
+    # take the median
+    
+    imputation <- median(data_col, na.rm = TRUE)
+
+  } else (return("error in class of variable"))
+  
+  data_col[is.na(data_col)] <- imputation
+  
+  #   print("running replace_median_mode")
+  print(paste(var_str, "imputation is", as.character(imputation)))
+  
+  if (sum(!is.na(data_col)) == length(data_col)){
+
+    return(data_col)
+    
+  } else return("error in imputing NAs")
+  
+}
+
+impute_data <- function(df, response_var, df_train){
+  
+  df <- data.frame(sapply(names(df), replace_median_mode, df, response_var))
+  # trick to fix incompatible types for random forest
+  # source: https://stackoverflow.com/questions/24829674/r-random-forest-error-type-of-predictors-in-new-data-do-not-match
+
+  df <- rbind(df_train[1, ] , df)
+  df <- df[-1,]
+  
+  return(df)
+  
+}
+
+```
+
+
+## Model evalution functions
+
+These functions were written by Amber to compile the RMSE, MAE, and summary stats for each predicted variables.
+
+```{r}
+error_df <- data.frame("Response" = as.character(),
+                       "RSME" = as.numeric(),
+                       "MAE" = as.numeric(),
+                       `Test data size` = as.numeric())
+
+error_df_imp <- data.frame("Response" = as.character(),
+                       "RSME" = as.numeric(),
+                       "MAE" = as.numeric(),
+                       `Test data size` = as.numeric())
+
+add_errors <- function(error_df, response_var, test_data){
+  # the test_data has a column called predicted 
+  # that has RF predictions without NAs
+  
+  test_data <- test_data %>%
+    mutate(residual = !!sym(response_var) - predicted,
+           residual_sq = residual^2,
+           abs_residual = abs(residual))
+  
+  
+  n <- round(dim(test_data)[1], 3)
+  rsme <- round(sqrt(sum(test_data$residual_sq)/n), 5)
+  mae <- round(sum(test_data$abs_residual)/n, 5)
+  
+  
+  return(rbind(error_df, data.frame("Response" = response_var,
+                                    "RSME" = rsme,
+                                    "MAE" = mae,
+                                    `Test data size` = n)))
+  
+}
+
+distribution_df <- data.frame("Response" = as.character(),
+                              "Mean" = as.numeric(),
+                              "Minimum" = as.numeric(),
+                              "Quartile 1" = as.numeric(),
+                              "Median" = as.numeric(),
+                              "Quartile 3" = as.numeric(),
+                              "Maximum" = as.numeric())
+
+distribution_df_imp <- data.frame("Response" = as.character(),
+                              "Mean" = as.numeric(),
+                              "Minimum" = as.numeric(),
+                              "Quartile 1" = as.numeric(),
+                              "Median" = as.numeric(),
+                              "Quartile 3" = as.numeric(),
+                              "Maximum" = as.numeric())
+
+add_distribution <- function(distribution_df, response_var, test_data){
+  
+  predictions <- test_data$predicted
+  
+  return(rbind(distribution_df, 
+               data.frame("Response" = response_var,
+                          "Mean" = round(mean(predictions), 5),
+                          "Minimum" = round(min(predictions), 5),
+                          "Quartile 1" = round(quantile(predictions, 0.25), 5),
+                          "Median" = round(median(predictions), 5),
+                          "Quartile 3" = round(quantile(predictions, 0.50), 5),
+                          "Maximum" = round(max(predictions), 5))))
+}
+```
+
+
+### TN model
+
+#### Predicting with surrogate splits
+
+```{r}
+#Create a new data set that removes only the na TN values
+ water_TN = rt_data %>% filter(!is.na(TN))
+
+set.seed(571)
+sample_size = 0.80 * nrow(water_TN)
+train_indices <- sample(seq_len(nrow(water_TN)), size = sample_size)
+
+tn_train <- water_TN[train_indices, ]
+tn_test <- water_TN[-train_indices, ]
+
+tr.TN_rpart <- rpart(TN ~ .,
+                     data = tn_train,
+                     method = "anova",
+                     control = rpart.control(cp = .011) )
+```
+
+\newpage
+
+```{r}
+
+fancyRpartPlot(tr.TN_rpart, main = "TN_tree")
+```
+
+```{r}
+
+tn_test$predicted <- predict(tr.TN_rpart, tn_test)
+
+# Summary stats
+error_df <- add_errors(error_df, "TN", tn_test)
+distribution_df <- add_distribution(distribution_df, "TN", tn_test)
+
+
+# Plots
+ggplot(data = tn_test, aes(x = TN, y = predicted)) +
+  geom_point(alpha = 0.25) +
+  geom_abline() +
+  labs(title = "Predicted versus actual TN values")
+
+ggplot(data = rbind(data.frame(TN = c(tn_test$TN), TN_type = "actual"),
+                    data.frame(TN = c(tn_test$predicted), TN_type = "predicted"))) +
+  geom_boxplot(aes(x = TN, y = TN_type, group = TN_type)) +
+  labs(title = "Distribution of predicted and actual TN values")
+
+
+ggplot(data = tn_test, aes(x = TN - predicted)) +
+  geom_histogram(bins = 30) +
+  labs(title = "Distribution of TN residuals", x = "Actual - predicted")
+```
+
+
+#### Predicting with imputed data
+
+```{r}
+tn_train_imp <- impute_data(tn_train, "TN", tn_train)
+tn_test_imp <- impute_data(tn_test, "TN", tn_test)
+
+
+tr.TN_imp_rpart <- rpart(TN ~ .,
+                     data = tn_train_imp,
+                     method = "anova",
+                     control = rpart.control(cp = .011, usesurrogate = 0) )
+```
+
+```{r}
+
+fancyRpartPlot(tr.TN_imp_rpart, main = "TN_tree (imputed)")
+```
+
+```{r}
+tn_test_imp$predicted <- predict(tr.TN_imp_rpart, tn_test_imp)
+
+# Summary stats
+error_df_imp <- add_errors(error_df_imp, "TN", tn_test_imp)
+distribution_df_imp <- add_distribution(distribution_df_imp, "TN", tn_test_imp)
+
+
+# Plots
+ggplot(data = tn_test_imp, aes(x = TN, y = predicted)) +
+  geom_point(alpha = 0.25) +
+  geom_abline() +
+  labs(title = "Predicted versus actual TN values")
+
+ggplot(data = rbind(data.frame(TN = c(tn_test_imp$TN), TN_type = "actual"),
+                    data.frame(TN = c(tn_test_imp$predicted), TN_type = "predicted"))) +
+  geom_boxplot(aes(x = TN, y = TN_type, group = TN_type)) +
+  labs(title = "Distribution of predicted and actual TN values")
+
+
+ggplot(data = tn_test_imp, aes(x = TN - predicted)) +
+  geom_histogram(bins = 30) +
+  labs(title = "Distribution of TN residuals", x = "Actual - predicted")
+
+
+
+
+```
+
+### TP model
+
+#### Predicting with surrogate splits
+
+```{r}
+#Create a new data set that removes only the na TN values
+ water_TP = rt_data %>% filter(!is.na(TP))
+
+set.seed(571)
+sample_size = 0.80 * nrow(water_TP)
+train_indices <- sample(seq_len(nrow(water_TP)), size = sample_size)
+
+tp_train <- water_TP[train_indices, ]
+tp_test <- water_TP[-train_indices, ]
+
+tr.TP_rpart <- rpart(TP ~ .,
+                     data = tp_train,
+                     method = "anova",
+                     control = rpart.control(cp = .011) )
+
+```
+
+\newpage
+```{r}
+
+fancyRpartPlot(tr.TP_rpart, main = "TP_tree")
+
+```
+
+```{r}
+
+tp_test$predicted <- predict(tr.TP_rpart, tp_test)
+
+# Summary stats
+error_df <- add_errors(error_df, "TP", tp_test)
+distribution_df <- add_distribution(distribution_df, "TP", tp_test)
+
+
+# Plots
+ggplot(data = tp_test, aes(x = TP, y = predicted)) +
+  geom_point(alpha = 0.25) +
+  geom_abline() +
+  labs(title = "Predicted versus actual TP values")
+
+ggplot(data = rbind(data.frame(TP = c(tp_test$TP), TP_type = "actual"),
+                    data.frame(TP = c(tp_test$predicted), TP_type = "predicted"))) +
+  geom_boxplot(aes(x = TP, y = TP_type, group = TP_type)) +
+  labs(title = "Distribution of predicted and actual TP values")
+
+
+ggplot(data = tp_test, aes(x = TP - predicted)) +
+  geom_histogram(bins = 30) +
+  labs(title = "Distribution of TP residuals", x = "Actual - predicted")
+```
+
+
+#### Predicting with imputed data
+
+```{r}
+tp_train_imp <- impute_data(tp_train, "TP", tp_train)
+tp_test_imp <- impute_data(tp_test, "TP", tp_test)
+
+
+tr.TP_imp_rpart <- rpart(TP ~ .,
+                     data = tp_train_imp,
+                     method = "anova",
+                     control = rpart.control(cp = .011, usesurrogate = 0) )
+
+fancyRpartPlot(tr.TP_imp_rpart, main = "TP_tree (imputed)")
+
+tp_test_imp$predicted <- predict(tr.TP_imp_rpart, tp_test_imp)
+
+# Summary stats
+error_df_imp <- add_errors(error_df_imp, "TP", tp_test_imp)
+distribution_df_imp <- add_distribution(distribution_df_imp, "TP", tp_test_imp)
+
+
+# Plots
+ggplot(data = tp_test_imp, aes(x = TP, y = predicted)) +
+  geom_point(alpha = 0.25) +
+  geom_abline() +
+  labs(title = "Predicted versus actual TP values")
+
+ggplot(data = rbind(data.frame(TP = c(tp_test_imp$TP), TP_type = "actual"),
+                    data.frame(TP = c(tp_test_imp$predicted), TP_type = "predicted"))) +
+  geom_boxplot(aes(x = TP, y = TP_type, group = TP_type)) +
+  labs(title = "Distribution of predicted and actual TN values")
+
+
+ggplot(data = tp_test_imp, aes(x = TP - predicted)) +
+  geom_histogram(bins = 30) +
+  labs(title = "Distribution of TN residuals", x = "Actual - predicted")
+
+
+```
+
+### VEL model
+
+#### Predicting with surrogate splits
+
+```{r}
+#Create a new data set that removes only the na TN values
+ water_VEL = rt_data %>% filter(!is.na(VEL))
+
+sample_size = 0.80 * nrow(water_VEL)
+train_indices <- sample(seq_len(nrow(water_VEL)), size = sample_size)
+
+vel_train <- water_VEL[train_indices, ]
+vel_test <- water_VEL[-train_indices, ]
+
+tr.VEL_rpart <- rpart(VEL ~ .,
+                     data = vel_train,
+                     method = "anova",
+                     control = rpart.control(cp = .011) )
+```
+\newpage
+
+```{r}
+fancyRpartPlot(tr.VEL_rpart, main = "VEL_tree")
+
+```
+
+```{r}
+
+vel_test$predicted <- predict(tr.VEL_rpart, vel_test)
+
+# Summary stats
+error_df <- add_errors(error_df, "VEL", vel_test)
+distribution_df <- add_distribution(distribution_df, "VEL", vel_test)
+
+
+# Plots
+ggplot(data = vel_test, aes(x = VEL, y = predicted)) +
+  geom_point(alpha = 0.25) +
+  geom_abline() +
+  labs(title = "Predicted versus actual VEL values")
+
+ggplot(data = rbind(data.frame(VEL = c(vel_test$VEL), VEL_type = "actual"),
+                    data.frame(VEL = c(vel_test$predicted), VEL_type = "predicted"))) +
+  geom_boxplot(aes(x = VEL, y = VEL_type, group = VEL_type)) +
+  labs(title = "Distribution of predicted and actual VEL values")
+
+
+ggplot(data = vel_test, aes(x = VEL - predicted)) +
+  geom_histogram(bins = 30) +
+  labs(title = "Distribution of VEL residuals", x = "Actual - predicted")
+```
+
+
+#### Predicting with imputed data
+
+```{r}
+vel_train_imp <- impute_data(vel_train, "VEL", vel_train)
+vel_test_imp <- impute_data(vel_test, "VEL", vel_test)
+
+tr.VEL_imp_rpart <- rpart(VEL ~ .,
+                     data = vel_train_imp,
+                     method = "anova",
+                     control = rpart.control(cp = .011, usesurrogate = 0) )
+
+```
+
+```{r}
+fancyRpartPlot(tr.VEL_imp_rpart, main = "VEL_tree (imputed)")
+
+```
+
+```{r}
+
+vel_test_imp$predicted <- predict(tr.VEL_imp_rpart, vel_test_imp)
+
+# Summary stats
+error_df_imp <- add_errors(error_df_imp, "VEL", vel_test_imp)
+distribution_df_imp <- add_distribution(distribution_df_imp, "VEL", vel_test_imp)
+
+
+# Plots
+ggplot(data = vel_test_imp, aes(x = VEL, y = predicted)) +
+  geom_point(alpha = 0.25) +
+  geom_abline() +
+  labs(title = "Predicted versus actual VEL values")
+
+ggplot(data = rbind(data.frame(VEL = c(vel_test_imp$VEL), VEL_type = "actual"),
+                    data.frame(VEL = c(vel_test_imp$predicted), VEL_type = "predicted"))) +
+  geom_boxplot(aes(x = VEL, y = VEL_type, group = VEL_type)) +
+  labs(title = "Distribution of predicted and actual VEL values")
+
+
+ggplot(data = vel_test_imp, aes(x = VEL - predicted)) +
+  geom_histogram(bins = 30) +
+  labs(title = "Distribution of VEL residuals", x = "Actual - predicted")
+
+
+```
+
+
+
 ## Functions
+
+This portion of the code will be used in order to run multiple model predictions at once.
 
 * rmna_row: creates a subset of the entire data set that has a complete column of the variable we   are currently estimating
 
@@ -154,18 +617,7 @@ make_plots <- function(data_test, target_actual, target_pred) {
       theme(aspect.ratio = 1) + xlim(0, 4) + ylim(0, 4) +
       labs( y = target_pred, x = target_actual)
     ggsave(png_name)
-    
-    # make a new data frame
-    
-    
-    # box plot -TODO
-    #png_name = paste(target_actual, "_boxplot.png", sep = "")
-    #ggplot(data_test) + 
-    #  geom_boxplot(aes(x = interaction(X,Y)))
-    #ggsave(png_name)
-    
-    # historgram
-    #png_name = paste(target_actual, "")
+  
   
 }
 
@@ -215,24 +667,24 @@ get_model_stats <- function(data_test, errorBool) {
 
 
 ```{r}
-water_var_preds <- lapply( water_vars, rt_evaluation, rt_data )
-water_var_errors <- lapply( water_var_preds, get_model_stats, TRUE )
-water_var_summary <- lapply( water_var_preds, get_model_stats, FALSE )
+#water_var_preds <- lapply( water_vars, rt_evaluation, rt_data )
+#water_var_errors <- lapply( water_var_preds, get_model_stats, TRUE )
+#water_var_summary <- lapply( water_var_preds, get_model_stats, FALSE )
 
 # combine columns
-type <- c("MAE", "RMSE")
+#type <- c("MAE", "RMSE")
 
 # Renames the columns of the error data frame
-TP <- water_var_errors[[1]]
-TN <- water_var_errors[[2]]
-VEL <- water_var_errors[[3]]
-model_errors <- data.frame( type, TP, TN, VEL)
+#TP <- water_var_errors[[1]]
+#TN <- water_var_errors[[2]]
+#VEL <- water_var_errors[[3]]
+#model_errors <- data.frame( type, TP, TN, VEL)
 
 # Renames the columns of the summary stat data frame
-one <- water_var_summary[[1]]
-two <- water_var_summary[[2]]
-three <- water_var_summary[[3]]
-model_summary <- data.frame(one, two, three)
+#one <- water_var_summary[[1]]
+#two <- water_var_summary[[2]]
+#three <- water_var_summary[[3]]
+#model_summary <- data.frame(one, two, three)
 
 ```
 
