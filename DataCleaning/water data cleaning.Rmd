@@ -418,36 +418,6 @@ tmp <- mutate( tmp, TEMP = ifelse(TEMP < 0, 0.1, TEMP))
 #nrow(check_negatives)
 
 
-### My idea for the functions !!! 
-
-# Columns that we need to replace negatives for - for some reason c("name"s) is not working
-neg_cols <- water_var[c(1, 2, 3, 8, 9, 10)]
-
-
-# Get the positive minimum value we will you for each of negative values
-
-#get_minimum <- function(variable, data) {
-#  temp <- data %>% filter(variable > 0)
-#  min(temp$variable, na.rm = TRUE)
-#  return(temp)
-  
-#}
-
-# Function that will replace any negative values in a column with a specified value
-
-#replace_negatives <- function(neg_col, replace_val, data) {
-#  data <- mutate( data, neg_col = ifelse(TP < 0, replace_val, neg_col))
-#}
-
-
-# these don't work :(
-minimums <- lapply(neg_cols, get_minimum, qfwater20) 
-water <- lapply(neg_cols, replace_negatives, minimums, qfwater20[neg_cols])
-
-
-
-
-
 #lapply(water_var[!(water_var %in% c("WDP", "CHLcal"))], function(var, df) 
 #  df %>%
 #    select(all_of(c(var, paste(var, "QF", sep = "")))) %>%
