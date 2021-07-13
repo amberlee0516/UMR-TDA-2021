@@ -263,6 +263,11 @@ fancyRpartPlot(tr.TN_rpart, main = "TN_tree")
 ```
 
 ```{r}
+printcp(tr.TN_rpart)
+
+```
+
+```{r}
 
 tn_test$predicted <- predict(tr.TN_rpart, tn_test)
 
@@ -330,9 +335,6 @@ ggplot(data = rbind(data.frame(TN = c(tn_test_imp$TN), TN_type = "actual"),
 ggplot(data = tn_test_imp, aes(x = TN - predicted)) +
   geom_histogram(bins = 30) +
   labs(title = "Distribution of TN residuals", x = "Actual - predicted")
-
-
-
 
 ```
 
