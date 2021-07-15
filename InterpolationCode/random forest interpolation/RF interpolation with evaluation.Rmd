@@ -280,7 +280,7 @@ add_distribution <- function(distribution_df, response_var, test_data){
 ## 1. 80/20 split
 
 ```{r}
-set.seed(7447)
+set.seed(4747)
 
 # train and test RF on dataset with full TP values
 fullTP <- water20 %>% filter(!is.na(TP)) 
@@ -338,14 +338,20 @@ ggplot(data = TP_test, aes(x = TP, y = predicted)) +
   geom_abline() +
   labs(title = "Predicted versus actual TP values")
 
+ggsave("TP predicted vs actual.png")
+
 ggplot(data = rbind(data.frame(TP = c(TP_test$TP), TP_type = "actual"),
                     data.frame(TP = c(TP_test$predicted), TP_type = "predicted"))) +
   geom_boxplot(aes(x = TP, y = TP_type, group = TP_type)) +
   labs(title = "Distribution of predicted and actual TP values")
 
+ggsave("TP boxplot predicted vs actual.png")
+
 ggplot(data = TP_test, aes(x = TP - predicted)) +
   geom_histogram(bins = 30) +
   labs(title = "Distribution of TP residuals", x = "Actual - predicted")
+
+ggsave("TP residuals.png")
 
 ```
 
@@ -355,9 +361,9 @@ ggplot(data = TP_test, aes(x = TP - predicted)) +
 ## 1. 80/20 split
 
 ```{r}
-set.seed(7447)
+set.seed(4747)
 
-fullTN <- water20 %>% filter(!is.na(TN)) 
+fullTN <- water20 %>% filter(!is.na(TN))  %>% filter(TN < 100) # take away three values that are more than median + 50*IQR away
 TN_split <- initial_split(fullTN, prop = 0.8)
 TN_train <- training(TN_split)
 print("TN_train median/mode imputation")
@@ -407,14 +413,21 @@ ggplot(data = TN_test, aes(x = TN, y = predicted)) +
   geom_abline() +
   labs(title = "Predicted versus actual TN values")
 
+ggsave("TN predicted vs actual.png")
+
 ggplot(data = rbind(data.frame(TN = c(TN_test$TN), TN_type = "actual"),
                     data.frame(TN = c(TN_test$predicted), TN_type = "predicted"))) +
   geom_boxplot(aes(x = TN, y = TN_type, group = TN_type)) +
   labs(title = "Distribution of predicted and actual TN values")
 
+ggsave("TN boxplot predicted vs actual.png")
+
 ggplot(data = TN_test, aes(x = TN - predicted)) +
   geom_histogram() +
   labs(title = "Distribution of TN residuals", x = "Actual - predicted")
+
+ggsave("TN residuals.png")
+
 
 ```
 
@@ -423,7 +436,7 @@ ggplot(data = TN_test, aes(x = TN - predicted)) +
 ## 1. 80/20 split
 
 ```{r}
-set.seed(7447)
+set.seed(4747)
 
 fullVEL <- water20 %>% filter(!is.na(VEL)) 
 VEL_split <- initial_split(fullVEL, prop = 0.8)
@@ -477,14 +490,20 @@ ggplot(data = VEL_test, aes(x = VEL, y = predicted)) +
   geom_abline() +
   labs(title = "Predicted versus actual VEL values")
 
+ggsave("VEL predicted vs actual.png")
+
 ggplot(data = rbind(data.frame(VEL = c(VEL_test$VEL), VEL_type = "actual"),
                     data.frame(VEL = c(VEL_test$predicted), VEL_type = "predicted"))) +
   geom_boxplot(aes(x = VEL, y = VEL_type, group = VEL_type)) +
   labs(title = "Distribution of predicted and actual VEL values")
 
+ggsave("VEL boxplot predicted vs actual.png")
+
 ggplot(data = VEL_test, aes(x = VEL - predicted)) +
   geom_histogram() +
   labs(title = "Distribution of VEL residuals", x = "Actual - predicted")
+
+ggsave("VEL residuals.png")
 
 ```
 
