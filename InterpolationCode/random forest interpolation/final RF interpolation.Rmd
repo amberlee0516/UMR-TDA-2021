@@ -195,7 +195,7 @@ TP_missing <- TP_missing %>% select(SHEETBAR, predicted_TP)
 ```{r}
 
 TN_train <- water_interpolation %>%
-  filter(!is.na(TN))
+  filter(!is.na(TN), TN < 100) 
 
 TN_train <- impute_data(TN_train, "TN", TN_train)
 
