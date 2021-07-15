@@ -386,7 +386,7 @@ Originally it was thought that these values should be replaced with NA, however 
 * Negative WDP values will be replaced with 0 
 * Negative TP, TN, SS, CHLcal, and TEMP values will be be replaced with the current minimum record for that variable. 
 
-Since not all values have a detection threshold, we will be using the minima of each of the variables. This is to give us, in a sense, the worst case scenario for each values. Since we know that it is unlikely that these values are 0, replacing them with the smallest recorded value will still account for the fact that these values are comparatively much smaller than the rest of the data. [EXPLAIN WHY WE WILL USE THE MINIMUM]
+Since not all values have a detection threshold, we will be using the minima of each of the variables. This is to give us, in a sense, the worst case scenario for each values. Since we know that it is unlikely that these values are 0, replacing them with the smallest positive recorded value will still account for the fact that these values are comparatively much smaller than the rest of the data. [EXPLAIN WHY WE WILL USE THE MINIMUM]
 
 The code works as follows:
 
