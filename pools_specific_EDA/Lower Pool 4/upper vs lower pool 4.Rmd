@@ -1,0 +1,22 @@
+---
+title: "Splitting up pool 4"
+author: "Amber Lee"
+date: "8/2/2021"
+output: pdf_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(ggplot2)
+library(lubridate)
+```
+
+```{r}
+water20 <- read.csv(file = "../../LTRM data/RF interpolation/water_full.csv")
+```
+
