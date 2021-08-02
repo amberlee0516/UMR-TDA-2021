@@ -13,10 +13,64 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r}
 library(tidyverse)
 library(ggplot2)
-library(lubridate)
+library(RColorBrewer)
 ```
 
 ```{r}
 water20 <- read.csv(file = "../../LTRM data/RF interpolation/water_full.csv")
+```
+
+```{r}
+blue_pal <- c(brewer.pal(9,'Blues')[2], brewer.pal(9,'Blues')[5], brewer.pal(9,'Blues')[7])
+```
+
+```{r}
+water20 %>% distinct(STRATUM)
+```
+
+```{r}
+water20 %>%
+  filter(FLDNUM == "Lake City, MN") %>%
+  ggplot(aes(x = LATITUDE, y = LONGITUDE)) +
+  geom_point(alpha = 0.2) +
+  ggtitle("Plotting Pool 4, as is")
+```
+
+```{r}
+water20 %>%
+  filter(FLDNUM == "Lake City, MN") %>%
+  ggplot(aes(x = LONGITUDE, y = LATITUDE)) +
+  geom_point(alpha = 0.2) +
+  ggtitle("Plotting Pool 4, switching LAT and LONG (due to coding error)")
+```
+This is correct.
+
+
+```{r}
+
+water20 %>%
+  filter(FLDNUM == "Lake City, MN") %>%
+  mutate(wrong_long = LONGITUDE,
+         wrong_lat = LATITUDE,
+         LONGITUDE = wrong_lat,
+         LATITUDE = wrong_long,
+         `Pool 4 Regions` = case_when(LATITUDE <= -92.4 & STRATUM != "Lake Pepin or Swan Lake" ~
+                                        "Upper Pool 4",
+                                      LATITUDE >=  -92.11 & STRATUM != "Lake Pepin or Swan Lake" ~
+                                        "Lower Pool 4",
+                                      TRUE ~ "Lake Pepin")) %>%
+  ggplot(aes(x = LATITUDE, y = LONGITUDE)) +
+  geom_point(aes(color = `Pool 4 Regions`), alpha = 0.2) +
+  scale_color_manual(values = blue_pal) +
+  geom_vline(aes(xintercept = -92.11), linetype = "dashed", size = 0.15) +
+  geom_vline(aes(xintercept = -92.43), linetype = "dashed", size = 0.15) +
+  ggtitle("Pool 4 in Lake City, Minnesota",
+          subtitle = "Dashed lines indicate region boundaries") +
+  guides(colour = guide_legend(override.aes = list(alpha = 1))) +
+  # scale_x_continuous(limits = c(91.8, 92.65)) +
+  # scale_y_continuous(limits = c(-44.65, -44.3)) +
+  theme_bw()
+
+ggsave("Pool 4 Splitting.png", width = 8, height = 6)
 ```
 
