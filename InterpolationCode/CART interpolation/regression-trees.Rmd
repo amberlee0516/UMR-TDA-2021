@@ -29,10 +29,11 @@ The data set that we are using has been cleaned to:
 
   1. Replace values with bad QF codes with NA
   2. Replace negative values for TP, TN, SS, TEMP, and with the minimum recorded value
-  3. Replace engative WDP values with 0
+  3. Replace negatives WDP values with 0
   4. Filtered for surface samples (excluded mid and bottom samples)
   5. Filtered for random samples (excluded fixed sites in river tributaries)
-  6. Combined rows that had the sample SHEETBAR values
+  6. Replaced TN outliers (TN > 25) with `NA`
+  7. Combined rows that had the sample SHEETBAR values
   
 
 ```{r}
@@ -64,17 +65,10 @@ rt_data <- water_data[predictor_vars] # regression tree data
 
 ```
 
-## Remove outliers
-
-For the purpose of interpolating, we will be removing three samples that are outliers for TN. These samples of TN values of 165.177, 149.712, and 187.429 and are more than 50 times the IQR. These points are effecting the accuracy of the model and will be excluded for interpolation only. They will be added back to the data for TDA.
-
-```{r}
-rt_data <- rt_data %>% filter(TN < 100 | is.na(TN))
-```
 
 ## Assumptions
 
-While there are missing values in all continuous variables, we will be begin by interpolating for only TP, TN, and VEL, the variables with the most missingness. We will be usin TP, TN, TURB, COND, VEL, WDP, season, year, STRATUM, FLDNUM, CHLcal, SS, TEMP, SECCHI, and DO as our predictor variables. We will use an 80/20 train-test split to create the model and test for its accuracy. The train and test data for the tree for each interpolated variable will be made from a subset of the entire cleaned UMR data set that has no missing values for the current target variable. 
+While there are missing values in all continuous variables, we will be begin by interpolating for only TP, TN, and VEL, the variables with the most missingness. We will be using TP, TN, TURB, COND, VEL, WDP, season, year, STRATUM, FLDNUM, CHLcal, SS, TEMP, SECCHI, and DO as our predictor variables. We will use an 80/20 train-test split to create the model and test for its accuracy. The train and test data for the tree for each interpolated variable will be made from a subset of the entire cleaned UMR data set that has no missing values for the current target variable. 
 
 After having created this models, we used the 1-SE rule to set the CP control method. Since TN is so poorly predicted, we will be only taking into account the CP value suggested for TP and VEL. The CP value for TP needed to be between .015 and .01 and for VEL it needed to be between .01 and .03. We will use CP = .011. 
 
@@ -87,13 +81,12 @@ The creation of the model for each target variable (the variable we are attempti
 
   1. Create a subset of the entire data set that has a complete column of the variable we   are        currently estimating
   2. Create a 80/20 train/test split of the data
-  3. Train a regression tree model to predict a target variable will all the other predictors
+  3. Train a regression tree model to predict a target variable with all the other predictors
   4. Test the regression model with the test data
   5. Calculate the RMSE, MAE, and summary stats for the actual versus predicted values
   6. Plot the actual vs. predicted scatter plots, boxplots, and histograms
   
-We will run the model first using surrogates splits and then a second time using median imputation. 
-
+We will run the model first using surrogates splits and then a second time using median imputation to compare the two methods.
 
 ## Data imputation functions
 
@@ -167,7 +160,7 @@ impute_data <- function(df, response_var, df_train){
 
 ## Model evalution functions
 
-These functions were written by Amber to compile the RMSE, MAE, and summary stats for each predicted variables.
+These functions were written by Amber to compile the RMSE, MAE, and summary stats for each predicted variables. error_df and distribution_df contain the errors and summary stats for the regression trees when the surrogate splits are used. error_df_imp and distribution_df_imp contain the errors and summary stats for regression trees when median imputation is used.
 
 ```{r}
 error_df <- data.frame("Response" = as.character(),
@@ -324,17 +317,17 @@ distribution_df_imp <- add_distribution(distribution_df_imp, "TN", tn_test_imp)
 ggplot(data = tn_test_imp, aes(x = TN, y = predicted)) +
   geom_point(alpha = 0.25) +
   geom_abline() +
-  labs(title = "Predicted versus actual TN values")
+  labs(title = "Predicted versus actual TN values (with median imputation)")
 
 ggplot(data = rbind(data.frame(TN = c(tn_test_imp$TN), TN_type = "actual"),
                     data.frame(TN = c(tn_test_imp$predicted), TN_type = "predicted"))) +
   geom_boxplot(aes(x = TN, y = TN_type, group = TN_type)) +
-  labs(title = "Distribution of predicted and actual TN values")
+  labs(title = "Distribution of predicted and actual TN values (with median imputation)")
 
 
 ggplot(data = tn_test_imp, aes(x = TN - predicted)) +
   geom_histogram(bins = 30) +
-  labs(title = "Distribution of TN residuals", x = "Actual - predicted")
+  labs(title = "Distribution of TN residuals (with median imputation)", x = "Actual - predicted")
 
 ```
 
@@ -419,17 +412,17 @@ distribution_df_imp <- add_distribution(distribution_df_imp, "TP", tp_test_imp)
 ggplot(data = tp_test_imp, aes(x = TP, y = predicted)) +
   geom_point(alpha = 0.25) +
   geom_abline() +
-  labs(title = "Predicted versus actual TP values")
+  labs(title = "Predicted versus actual TP values (with median imputation)")
 
 ggplot(data = rbind(data.frame(TP = c(tp_test_imp$TP), TP_type = "actual"),
                     data.frame(TP = c(tp_test_imp$predicted), TP_type = "predicted"))) +
   geom_boxplot(aes(x = TP, y = TP_type, group = TP_type)) +
-  labs(title = "Distribution of predicted and actual TN values")
+  labs(title = "Distribution of predicted and actual TN values (with median imputation)")
 
 
 ggplot(data = tp_test_imp, aes(x = TP - predicted)) +
   geom_histogram(bins = 30) +
-  labs(title = "Distribution of TN residuals", x = "Actual - predicted")
+  labs(title = "Distribution of TN residuals (with median imputation)", x = "Actual - predicted")
 
 
 ```
@@ -518,19 +511,33 @@ distribution_df_imp <- add_distribution(distribution_df_imp, "VEL", vel_test_imp
 ggplot(data = vel_test_imp, aes(x = VEL, y = predicted)) +
   geom_point(alpha = 0.25) +
   geom_abline() +
-  labs(title = "Predicted versus actual VEL values")
+  labs(title = "Predicted versus actual VEL values (with median imputation)")
 
 ggplot(data = rbind(data.frame(VEL = c(vel_test_imp$VEL), VEL_type = "actual"),
                     data.frame(VEL = c(vel_test_imp$predicted), VEL_type = "predicted"))) +
   geom_boxplot(aes(x = VEL, y = VEL_type, group = VEL_type)) +
-  labs(title = "Distribution of predicted and actual VEL values")
+  labs(title = "Distribution of predicted and actual VEL values (with median imputation)")
 
 
 ggplot(data = vel_test_imp, aes(x = VEL - predicted)) +
   geom_histogram(bins = 30) +
-  labs(title = "Distribution of VEL residuals", x = "Actual - predicted")
+  labs(title = "Distribution of VEL residuals (with median imputation)", x = "Actual - predicted")
 
 
+```
+
+## Results
+
+After creating the models for each method, we will print the summary stats. These stats will be used to compare with the other interpolation methods we are testing. We can also determine if our model is better when the surrogate splits are used or when median imputation is used on the missing values. We conclude that the regression tree model is more accurate when surrogate splits are used.
+
+
+```{r}
+print("Errors and summary stats of regression trees with surrogate splits")
+print(error_df)
+print(distribution_df)
+print("Errors and summary stats of regression trees with median imputation")
+print (error_df_imp)
+print(distribution_df_imp)
 ```
 
 
@@ -622,7 +629,6 @@ make_plots <- function(data_test, target_actual, target_pred) {
   
   
 }
-
 
 get_model_stats <- function(data_test, errorBool) {
   
