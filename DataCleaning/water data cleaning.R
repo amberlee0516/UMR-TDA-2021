@@ -4,9 +4,28 @@
 # date: 6-28-21
 #####################################
 
-# This code will take in LTRM water quality data set and clean it for the purpose of
-# interpolating missing values for the continuous variables and preparing the data
-# to use TDAmapper
+# This script will accompany the water_data_cleaning.Rmd file so that the data
+# cleaning may be done all at once. This script will also omit detailed explanations
+# as to why we chose to clean the code as we did. These details can be found in the
+# markdown file.
+
+# Recall that our end goal is to use Python Kepler Mapper on this data to quantify 
+# ecological states in the Upper Mississippi River System. To do so, we hope to retain
+# as much data as possible while still only using relevant rows and columns of the LTRM 
+# data set. Our goal is to first filter the data for these relevant rows and remove 
+# any sample values that may be faulty. We will then use this cleaned data to interpolate
+# missing values. 
+
+# Here is what steps were taken to clean the LTRM data for our purposes
+# 1. Filter for surface level samples.
+# 2. Filter for non-fixed site samples (and select 11 important continuous variables 
+#    and 7 identifier variables).
+# 3. Change variable values with bad QF code values to `NA`.
+# 4. Replace negative values in 11 continuous variables with either the minimum 
+#    recorded values or 'NA'
+# 5. Replace total nitrogen values greater than 25 with 'NA'
+# 6. Collapse duplicate `SHEETBAR`s by taking the averages between their variable values
+
 
 # Load libraries
 library(tidyverse)
@@ -110,24 +129,26 @@ qfcodes_check <- function(qf_str, df, two_badqfval){
 # Collapse the rows with the same SHEETBAR code
 row_collapse <- function(data, water_var, identifier_var) {
   
-  # Count how many rows each sheetbar has
+  # sheetbar_counts contains how many rows each sheetbar has
+  # sheetbar_dups is all the sheetbars that have multiple rows
+  # data_dups is the actual data (rows) of the duplicate sheetbars
+  # water_cleaned contains the combined columns
+  # data_dups_ids contaings the identifier variable columns for the duplicated rows
+  #     these are set aside so that they won't be averaged
+  
   sheetbar_counts <- data %>%
     group_by(SHEETBAR) %>%
     dplyr::summarize(count = n()) %>%
     arrange(-count) # 147130
   
-  # Filter for the sheetbars that have multiple rows
   sheetbar_dups <- sheetbar_counts %>% filter(count > 1) # 33
   data_dups <- data[data$SHEETBAR %in% sheetbar_dups$SHEETBAR, ] # 74
   
   # Set aside the rows with sheetbars that only occur once
   water_cleaned <- data[!(data$SHEETBAR %in% sheetbar_dups$SHEETBAR), ]
   
-  
-  # Average the continuous vars and re-merge the identifiers to the collapsed rows
   data_dups_ids <- data_dups[identifier_var]
   
-  # Find the mean of the continuous variables
   data_dups <- aggregate(data_dups[water_var], 
                          by = list(data_dups$SHEETBAR), 
                          FUN = mean,
@@ -135,11 +156,9 @@ row_collapse <- function(data, water_var, identifier_var) {
                          na.action = na.pass)
   colnames(data_dups)[colnames(data_dups) == 'Group.1'] <- 'SHEETBAR'
   
-  # Rounds the data frame
   is.num <-sapply(data_dups, is.numeric)
   data_dups[is.num] <- lapply(data_dups[is.num], round, 2)
   
-  # Replace NaN with Na to be consistent with the rest of the data
   data_dups[is.na(data_dups)] <- NA
   
   # Merge the ids back to the water_vars
@@ -199,31 +218,27 @@ c(unlist(lapply(qf_A0, qfcodes_check, qfwater20, c("A", "0"))),
   unlist(lapply(qf_864, qfcodes_check, qfwater20, c(8, 64))))
 
 
+### Replace negatives values with the minimum recorded value
+# tmp is the most updated cleaned data set
+tmp <- mutate( qfwater20, TP = ifelse(TP < 0, .002, TP))
+tmp <- mutate( tmp, TN = ifelse(TN < 0, .024, TN))
+tmp <- mutate( tmp, SS = ifelse(SS < 0, .02, SS))
+tmp <- mutate( tmp, WDP = ifelse(WDP < 0, 0, WDP))
+tmp <- mutate( tmp, CHLcal = ifelse(CHLcal < 0, 0.0183, CHLcal))
+tmp <- mutate( tmp, TEMP = ifelse(TEMP < 0, 0.1, TEMP))
+
+
+
+### Replace the TN outliers with NA
+tmp$TN[tmp$TN > 25] <- NA 
+
+
 ### Collapse rows with the same SHEETBAR
+cleaned_data <- row_collapse(tmp[c(water_var, identifier_var)], 
+                    water_var, identifier_var)
 
-# Just continuous vars and identifiers (remove QF columns)
-qfwater20 <- qfwater20[c(water_var, identifier_var)]
-
-qfwater20 <- row_collapse(qfwater20, water_var, identifier_var)
-
-
-### Replace negatives values with NA
-
-tmp <- replace(qfwater20[water_var[water_var != "TEMP"]], 
-               qfwater20[water_var[water_var != "TEMP"]] < 0, NA)
-
-
-lapply(water_var[!(water_var %in% c("WDP", "CHLcal"))], function(var, df) 
-  df %>%
-    select(all_of(c(var, paste(var, "QF", sep = "")))) %>%
-    filter(!!sym(var) < 0) %>%
-    mutate(var = paste(var)) %>%
-    ggplot(aes(x = !!sym(var))) + 
-    geom_histogram(aes(fill = !!sym(paste(var, "QF", sep = ""))), 
-                   bins = 10), water20)
-
-### Write cleaned data to new CSV
-write.csv(tmp, "../LTRM data/water_data_qfneg.csv", row.names = FALSE)
+### Save data
+write.csv(cleaned_data, "../LTRM data/water_data_qfneg.csv", row.names = FALSE)
 
 
 

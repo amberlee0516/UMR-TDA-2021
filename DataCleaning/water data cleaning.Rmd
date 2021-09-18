@@ -19,9 +19,13 @@ Here's what we did. (``Samples" refers to rows of the data.)
 
 3. Change variable values with bad QF code values to `NA`.
 
-4. Collapse duplicate `SHEETBAR`s by taking the average.
 
-5. Replace negative values in 11 continuous variables with `NA`. 
+4. Replace negative values in 11 continuous variables with the minimum positive observation. 
+
+5. Replace total nitrogen outliars (>25) with `NA`.
+
+6. Collapse duplicate `SHEETBAR`s by taking the average.
+
 
 Concerns
 
@@ -377,9 +381,9 @@ c(unlist(lapply(qf_A0, qfcodes_check, qfwater20, c("A", "0"))),
 ```
 
 
-# 4. Replace negative values with NA
+# 4. Replace negative values with minimum positive observation
 
-In each of the continuous variable columns, there are several negative values. This occurs for the a couple different reasons. For the nutrient samples, such as nitrogen and phosphorus, the sample is below the detection limit and is small enough that a value cannot be accurately recorded. For the temperature, the negative values are due to errors in the probe at low temperatures. [MORE ABOUT THE NEGATIVES?]
+In each of the continuous variable columns, there are several negative values. This occurs for the a couple different reasons. For the nutrient samples, such as nitrogen and phosphorus, the sample is below the detection limit and is small enough that a value cannot be accurately recorded. For the temperature, the negative values are due to errors in the probe at low temperatures.
 
 Originally it was thought that these values should be replaced with NA, however doing so indicates that these values need to be interpolated. This a problem because we will be replacing lower sample values with likely higher predictions. Instead, we will replace these negative values in the following manner: 
 
@@ -391,6 +395,9 @@ Since not all values have a detection threshold, we will be using the minima of 
 The code works as follows:
 
 1. Determine what the minimum values are for TP, TN, SS, WDP, TEMP, and CHLcal
+   * This code was run manually for each variable to determine the minimum positive value
+     It will not need to run again since the minimum positve values have been hard coded
+     into the program
 
 2. For each TP, TN, SS, CHLcal, and TEMP column...
 
@@ -399,9 +406,6 @@ The code works as follows:
      
   
 ```{r}
-
-### This is what was used for the most current data set - dont be sad, its so ugly 
-
 get_min <- qfwater20 %>% filter(TEMP > 0 ) # Get the minimum positive value
 min(get_min$TEMP, na.rm =TRUE)
 
@@ -413,35 +417,18 @@ tmp <- mutate( tmp, WDP = ifelse(WDP < 0, 0, WDP))
 tmp <- mutate( tmp, CHLcal = ifelse(CHLcal < 0, 0.0183, CHLcal))
 tmp <- mutate( tmp, TEMP = ifelse(TEMP < 0, 0.1, TEMP))
 
-#sum(tmp$WDP < 0, na.rm = TRUE) # Checks to make sure there are no more negs
-#check_negatives <- tmp %>% filter(TEMP == 0.1) # check to see how many min vals there are
-#nrow(check_negatives)
+```
+# 5. Replace total nitrogen outliers (TN > 25) with NA
+
+Throughout the data, there are several large outliers in the total nitrogen column. We were advised by Jeff Houser to remove any TN value greater than 25 since these values are nearly impossible. The outliers that we have identified are most likely a mistake and can be removed for analysis. These values will be replaced with `NA`.
 
 
-#lapply(water_var[!(water_var %in% c("WDP", "CHLcal"))], function(var, df) 
-#  df %>%
-#    select(all_of(c(var, paste(var, "QF", sep = "")))) %>%
-#    filter(!!sym(var) < 0) %>%
-#    mutate(var = paste(var)) %>%
-#    ggplot(aes(x = !!sym(var))) + 
-#             geom_histogram(aes(fill = !!sym(paste(var, "QF", sep = ""))), 
-#                            bins = 10), water20)
-
-# lapply(water_var, function(var, df) 
-#   df %>%
-#     select(var) %>%
-#     filter(!!sym(var) < 0) %>%
-#     mutate(var = paste(var)), qfwater20)
-# 
-# 
-# lapply(water_var, function(var, df)
-#   df %>%
-#     select(var) %>%
-#     filter(!!sym(var) < 0) %>%
-#     mutate(var = paste(var)), tmp) # this checks that we successfully set negative values to 0
+```{r}
+tmp$TN[tmp$TN > 25] <- NA 
 ```
 
-# 5. Removing duplicates (continued): combine the rows that have the same SHEETBAR code
+
+# 6. Removing duplicates (continued): combine the rows that have the same SHEETBAR code
 
 The purpose of this next component is to clean the current data set and remove the remaining rows with non-unique barcodes (SHEETBAR). This will be done by combining or "collapsing" the rows with he same barcode. While filtering for the samples taken at the surface of the river (CALCZCD == "SF") accounted for a majority of the rows with identical barcodes, there are still several rows that need to be removed.
 
