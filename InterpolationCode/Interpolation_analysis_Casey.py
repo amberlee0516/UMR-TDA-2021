@@ -296,139 +296,139 @@ print(water_data.shape)
 
 
 
-# print("Testing multivariate polynomial interpolation, using every other variable as a predictor besides target variable")
-# print("Filtering out all rows with missing data")
-# qualdata = water_data.dropna(axis=0, how='any', thresh=None, subset=continuous, inplace=False).copy()
-# print(qualdata.shape)
-# print("Filtering out colums that we dont need")
-# qualdata.drop(qualdata.columns.difference(continuous), 1, inplace=True)
-# print(qualdata.shape)
-# The range of degree polynomials we will test for
+print("Testing multivariate polynomial interpolation, using every other variable as a predictor besides target variable")
+print("Filtering out all rows with missing data")
+qualdata = water_data.dropna(axis=0, how='any', thresh=None, subset=continuous, inplace=False).copy()
+print(qualdata.shape)
+print("Filtering out colums that we dont need")
+qualdata.drop(qualdata.columns.difference(continuous), 1, inplace=True)
+print(qualdata.shape)
+The range of degree polynomials we will test for
 
 
-# # Building degree 1 polynomial for TP and TN
-# # Building degree 2 polynomial for vel
-# models = {"TN":1,"TP":1,"VEL":2}
+# Building degree 1 polynomial for TP and TN
+# Building degree 2 polynomial for vel
+models = {"TN":1,"TP":1,"VEL":2}
 
-# for var in models:
-#     print("\n-----------------------------------")
-#     print("Building model for ",var)
-#     deg = models[var]
-#     predictors = continuous.copy()
-#     predictors.remove(var)
+for var in models:
+    print("\n-----------------------------------")
+    print("Building model for ",var)
+    deg = models[var]
+    predictors = continuous.copy()
+    predictors.remove(var)
     
-#     X = np.array(qualdata[predictors])
-#     y = np.array(qualdata[var])
+    X = np.array(qualdata[predictors])
+    y = np.array(qualdata[var])
     
-#     # Good idea to standardize predictor attributes - assumes each variable has a decently normal distribution
-#     scaler = RobustScaler().fit(X)
-#     X_standard = scaler.transform(X)
+    # Good idea to standardize predictor attributes - assumes each variable has a decently normal distribution
+    scaler = RobustScaler().fit(X)
+    X_standard = scaler.transform(X)
 
-#     # Save the scaler for this model
-#     os.mkdir("Regression Models\\"+var+"extra")
-#     path = "Regression Models\\"+var+"extra\\"
-#     pickle.dump(scaler,open(path+"scaler.p", "wb" ))
+    # Save the scaler for this model
+    os.mkdir("Regression Models\\"+var+"extra")
+    path = "Regression Models\\"+var+"extra\\"
+    pickle.dump(scaler,open(path+"scaler.p", "wb" ))
     
-#     # Split data into training and test sets
-#     X_train, X_test, y_train, y_test = train_test_split(X_standard, y, train_size=0.8)
+    # Split data into training and test sets
+    X_train, X_test, y_train, y_test = train_test_split(X_standard, y, train_size=0.8)
     
-#     # Save train and test sets
-#     pickle.dump(X_train,open(path+"X_train.p","wb"))
-#     pickle.dump(X_test,open(path+"X_test.p","wb"))
-#     pickle.dump(y_train,open(path+"y_train.p","wb"))
-#     pickle.dump(y_test,open(path+"y_test.p","wb"))
+    # Save train and test sets
+    pickle.dump(X_train,open(path+"X_train.p","wb"))
+    pickle.dump(X_test,open(path+"X_test.p","wb"))
+    pickle.dump(y_train,open(path+"y_train.p","wb"))
+    pickle.dump(y_test,open(path+"y_test.p","wb"))
     
     
-#     # Finally, we build the model, fit it to the full training data, and
-#     # estimate its out-of-sample performance by applying it to the test set
-#     best_poly = PolynomialFeatures(deg)
-#     best_lm = LinearRegression(fit_intercept=False)
-#     best_lm.fit(best_poly.fit_transform(X_train), y_train)
+    # Finally, we build the model, fit it to the full training data, and
+    # estimate its out-of-sample performance by applying it to the test set
+    best_poly = PolynomialFeatures(deg)
+    best_lm = LinearRegression(fit_intercept=False)
+    best_lm.fit(best_poly.fit_transform(X_train), y_train)
     
-#     pickle.dump(best_lm,open(path+"best_model_deg"+str(deg)+".p","wb"))
-#     pickle.dump(best_poly,open(path+"best_poly.p","wb"))
+    pickle.dump(best_lm,open(path+"best_model_deg"+str(deg)+".p","wb"))
+    pickle.dump(best_poly,open(path+"best_poly.p","wb"))
 
     
-#     # Estimate performance on test set:
-#     MSE = np.mean((y_test - best_lm.predict(best_poly.transform(X_test))) ** 2)
-#     RMSE = np.sqrt(MSE)
-#     MAE = np.mean(abs(y_test - best_lm.predict(best_poly.transform(X_test))))
-#     print(f'Degree {deg} polynomial has RMSE = {RMSE:.5f}')
-#     print(f'Degree {deg} polynomial has MAE = {MAE:.5f}')
-
-
+    # Estimate performance on test set:
+    MSE = np.mean((y_test - best_lm.predict(best_poly.transform(X_test))) ** 2)
+    RMSE = np.sqrt(MSE)
+    MAE = np.mean(abs(y_test - best_lm.predict(best_poly.transform(X_test))))
+    print(f'Degree {deg} polynomial has RMSE = {RMSE:.5f}')
+    print(f'Degree {deg} polynomial has MAE = {MAE:.5f}')
 
 
 
-# degrees = range(1,5)
-# for var in continuous:
-#     print("\n-----------------------------------")
-#     print("Building model for ",var)
-#     # Get our predictor variables for this model
-#     predictors = continuous.copy()
-#     predictors.remove(var)
+
+
+degrees = range(1,5)
+for var in continuous:
+    print("\n-----------------------------------")
+    print("Building model for ",var)
+    # Get our predictor variables for this model
+    predictors = continuous.copy()
+    predictors.remove(var)
     
-#     X = np.array(qualdata[predictors])
-#     y = np.array(qualdata[var])
+    X = np.array(qualdata[predictors])
+    y = np.array(qualdata[var])
     
-#     # Good idea to standardize predictor attributes - assumes each variable has a decently normal distribution
-#     scaler = RobustScaler().fit(X)
-#     X_standard = scaler.transform(X)
+    # Good idea to standardize predictor attributes - assumes each variable has a decently normal distribution
+    scaler = RobustScaler().fit(X)
+    X_standard = scaler.transform(X)
     
-#     # Save the scaler for this model
-#     os.mkdir("Regression Models\\"+var)
-#     path = "Regression Models\\"+var+"\\"
-#     pickle.dump(scaler,open(path+"scaler.p", "wb" ))
+    # Save the scaler for this model
+    os.mkdir("Regression Models\\"+var)
+    path = "Regression Models\\"+var+"\\"
+    pickle.dump(scaler,open(path+"scaler.p", "wb" ))
     
-#     # Split data into training and test sets
-#     X_train, X_test, y_train, y_test = train_test_split(X_standard, y, train_size=0.8)
+    # Split data into training and test sets
+    X_train, X_test, y_train, y_test = train_test_split(X_standard, y, train_size=0.8)
     
-#     # Save train and test sets
-#     pickle.dump(X_train,open(path+"X_train.p","wb"))
-#     pickle.dump(X_test,open(path+"X_test.p","wb"))
-#     pickle.dump(y_train,open(path+"y_train.p","wb"))
-#     pickle.dump(y_test,open(path+"y_test.p","wb"))
+    # Save train and test sets
+    pickle.dump(X_train,open(path+"X_train.p","wb"))
+    pickle.dump(X_test,open(path+"X_test.p","wb"))
+    pickle.dump(y_train,open(path+"y_train.p","wb"))
+    pickle.dump(y_test,open(path+"y_test.p","wb"))
 
 
     
     
-#     valid_err = np.zeros(len(degrees))
+    valid_err = np.zeros(len(degrees))
 
-#     print('      CV Validation Error')
-#     for idx, d in enumerate(degrees):
-#         poly = PolynomialFeatures(d)
-#         poly.fit(X_train)
-#         lm = LinearRegression(fit_intercept=False)
+    print('      CV Validation Error')
+    for idx, d in enumerate(degrees):
+        poly = PolynomialFeatures(d)
+        poly.fit(X_train)
+        lm = LinearRegression(fit_intercept=False)
         
-#         # Instead of fitting the model to the full training data, we'll use the cross_val_score function
-#         # in sklearn to do 5-fold cross-validation when fitting.
-#         scores = cross_val_score(lm, poly.transform(X_train), y_train, cv=5, scoring='neg_mean_squared_error')
+        # Instead of fitting the model to the full training data, we'll use the cross_val_score function
+        # in sklearn to do 5-fold cross-validation when fitting.
+        scores = cross_val_score(lm, poly.transform(X_train), y_train, cv=5, scoring='neg_mean_squared_error')
         
-#         # scores is an array with k computed validation errors on the left-out folds
-#         # We average them together (and negate) to get a single score
-#         valid_err[idx] = -1 * np.mean(scores)
+        # scores is an array with k computed validation errors on the left-out folds
+        # We average them together (and negate) to get a single score
+        valid_err[idx] = -1 * np.mean(scores)
      
-#         print(f'd={d:2d}: {valid_err[idx]:15.4f}')
+        print(f'd={d:2d}: {valid_err[idx]:15.4f}')
         
-#     best_d = degrees[np.argmin(valid_err)]
-#     print(f'Degree {best_d} polynomial has best cross-validation score')
+    best_d = degrees[np.argmin(valid_err)]
+    print(f'Degree {best_d} polynomial has best cross-validation score')
     
-#     # Finally, we build the model, fit it to the full training data, and
-#     # estimate its out-of-sample performance by applying it to the test set
-#     best_poly = PolynomialFeatures(best_d)
-#     best_lm = LinearRegression(fit_intercept=False)
-#     best_lm.fit(best_poly.fit_transform(X_train), y_train)
+    # Finally, we build the model, fit it to the full training data, and
+    # estimate its out-of-sample performance by applying it to the test set
+    best_poly = PolynomialFeatures(best_d)
+    best_lm = LinearRegression(fit_intercept=False)
+    best_lm.fit(best_poly.fit_transform(X_train), y_train)
     
-#     pickle.dump(best_lm,open(path+"best_model.p","wb"))
-#     pickle.dump(best_poly,open(path+"best_poly.p","wb"))
+    pickle.dump(best_lm,open(path+"best_model.p","wb"))
+    pickle.dump(best_poly,open(path+"best_poly.p","wb"))
 
     
-#     # Estimate performance on test set:
-#     MSE = np.mean((y_test - best_lm.predict(best_poly.transform(X_test))) ** 2)
-#     RMSE = np.sqrt(MSE)
-#     MAE = np.mean(abs(y_test - best_lm.predict(best_poly.transform(X_test))))
-#     print(f'Degree {best_d} polynomial has RMSE = {RMSE:.5f}')
-#     print(f'Degree {best_d} polynomial has MAE = {MAE:.5f}')
+    # Estimate performance on test set:
+    MSE = np.mean((y_test - best_lm.predict(best_poly.transform(X_test))) ** 2)
+    RMSE = np.sqrt(MSE)
+    MAE = np.mean(abs(y_test - best_lm.predict(best_poly.transform(X_test))))
+    print(f'Degree {best_d} polynomial has RMSE = {RMSE:.5f}')
+    print(f'Degree {best_d} polynomial has MAE = {MAE:.5f}')
 
 variables = ["TN","TP","VEL"]
 print("\n\nTesting by year, by season spatial interpolation")
